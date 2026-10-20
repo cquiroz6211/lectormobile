@@ -46,33 +46,6 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Recent Books Section -->
-            <LinearLayout
-                android:id="@+id/recentBooksSection"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="📚 Libros recientes"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:padding="8dp" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recentBooksRecyclerView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="8dp"
-                    android:clipToPadding="false" />
-
-            </LinearLayout>
-
             <!-- Divider -->
             <View
                 android:layout_width="match_parent"
