@@ -2,7 +2,8 @@
 
 ## Estado actual (2025-10-20)
 
-**Versión 1.0.1 (versionCode 2)** — APK release firmado, zipaligned e instalado y
+**Versión 1.1.0 (versionCode 3)** — Retomar lectura exacta + progreso visible.
+La 1.0.1 (versionCode 2) fue APK release firmado, zipaligned e instalado y
 probado en un emulador ARM64 con Android 16 (API 37).
 
 ### Verificado en ejecución
