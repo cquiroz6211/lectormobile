@@ -32,6 +32,17 @@ Rama: `feat/optimization`.
   ni llega fuera de orden. Una escritura que falla se registra y se salta sin
   tumbar la app ni bloquear las siguientes.
 
+- **S4** — **«Resaltar»/«Nota» en cualquier capítulo (bug del usuario, v1.4.2)**:
+  en un EPUB, al seleccionar texto en **cualquier capítulo** (no solo el primer
+  render) y tocar «Resaltar» o «Nota», la anotación se guarda y se pinta la
+  marca; si la captura falla se muestra «No se pudo capturar la selección».
+  Condiciones: (a) `window.HL` se re-inyecta en cada render — el latch
+  `annotationsJsReady` se reinicia en `onPageStarted` porque cada
+  `loadDataWithBaseURL` crea un documento nuevo sin `window.HL`;
+  (b) la selección se lee **antes** de cerrar el ActionMode y **antes** de
+  abrir el diálogo de nota; (c) los subrayados existentes se re-aplican en
+  cada render (depende de (a)).
+
 ## Tasks
 
 | ID | Specs | Route | Commit |
@@ -41,6 +52,7 @@ Rama: `feat/optimization`.
 | T3 | S3 | `SerialWriter` (test-first) + wiring en `ReaderActivity` | — |
 | T4 | S1-S3 | CHANGELOG, BACKLOG, README y bump 1.4.3 (versionCode 9) | — |
 | T5 | S1-S3 | verificación: `test`, `lintRelease`, APK en emulador | — |
+| T6 | S4 | fix latch HL + captura de selección pre-finish/pre-diálogo + diagnóstico logcat | — |
 
 Test-first aplicable a los tres núcleos: `ExtractionCache`, `SizeLruCache` y
 `SerialWriter` son clases puras Java (sin Android), unit-testeadas con JUnit.
@@ -81,3 +93,35 @@ El wiring en Activities se verifica funcionalmente (T5).
   una sola vez en `onDestroy` (además elimina el reopen en cada consulta).
   Sin runner JUnit local para SQLite (android.database.sqlite es stub en unit
   tests); se verifica reproduciendo el flujo exacto en emulador (T5).
+- **L8** — Reporte del usuario: «delega e investiga. en un epub que estoy leyendo
+  no puedo hacer notas ni reslatar»; vía ask_user_question: síntoma "no se pudo
+  capturar la seccion" y versión instalada **1.4.2**.
+- **L9** — Diagnóstico delegado (gentle-ai-explore, con file:line): la cadena es
+  selección → wrapper `onWindowStartingActionMode` → `captureSelection` →
+  `window.HL && window.HL.sel()` → null → toast «No se pudo capturar la
+  selección» (1354). Causa #1 (confirmada en emulador, RED): el latch
+  `annotationsJsReady` (línea 87) se pone en true y **nunca se reinicia**, pero
+  cada render llama `loadDataWithBaseURL` → documento nuevo sin `window.HL` →
+  desde el render #2 toda captura devuelve null. Evidencia RED en emulador:
+  render #1 `HL js: injected` + `HL typeof: "object"`; renders #2+ `HL js: skip
+  (latch still ready)` + `HL typeof: "undefined"`. Causas #2/#4 (secundarias):
+  `mode.finish()` síncrono después del eval asíncrono y «Nota» capturando la
+  selección recién al cerrar el diálogo — ambas rutas podían perder la
+  selección. #3 (endpoints que no son nodos de texto) queda registrada como
+  sospechosa residual si el bug persiste tras el fix.
+- **L10** — Verificación S4 en emulador (E2E real): (1) RED pre-fix: render #1
+  `HL typeof: "object"`, renders #2+ `undefined` con `HL js: skip` (ver L9);
+  (2) GREEN post-fix: 7 renders seguidos con `HL js: injected` + `"object"`;
+  (3) tap real en el menú (uiautomator no expone la toolbar flotante: se
+  localizó visualmente con screencap — los ítems viven en el overflow ⋮:
+  «Resaltar | Nota | Read aloud»): «Resaltar» → `HL capture: saved s=40 e=48`
+  + fila `1|35|40|48|'extrañas'`; «Nota» → diálogo, tap en Aceptar con bounds
+  refrescados post-teclado → `saved s=40 e=48 (note)` + fila
+  `2|...|'extrañas'|prueba nota 1.4.3`. (4) **Tercer bug destapado por el tap
+  real**: `HL.sel()` devuelve un string JSON que `evaluateJavascript`
+  re-serializa → `new JSONObject(value)` lanzaba `JSONException` ("Value
+  {...} of type java.lang.String cannot be converted") y **toda selección
+  válida se perdía en silencio** incluso con HL presente; parser corregido
+  con desanidado doble (JSONTokener). Tests+lint finales: BUILD SUCCESSFUL,
+  0 FAILED; lint 0 errores / 128 avisos (ninguno en archivos nuevos).
+  Corrección de claim: L3 decía «0 avisos»; era «0 errores».

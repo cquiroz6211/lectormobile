@@ -2,7 +2,11 @@
 
 ## Estado actual (2026-10-20)
 
-**Versión 1.4.2 (versionCode 8)** — Modo lectura inmersivo, tema sepia/cálido y salto rápido a página/capítulo.
+**Versión 1.4.3 (versionCode 9)** — Optimización de rendimiento: extracción de
+EPUB cacheada (sin re-descomprimir en cada apertura), portadas en caché de
+memoria (LRU 8 MB) y escritura de posiciones fuera del hilo principal.
+La 1.4.2 (versionCode 8) trajo modo lectura inmersivo, tema sepia/cálido y
+salto rápido a página/capítulo.
 La 1.4.1 (versionCode 7) corrigió la inyección de acciones de selección en ActionModes primarios.
 La 1.4.0 (versionCode 6) trajo subrayado y notas en EPUB.
 La 1.3.0 (versionCode 5) trajo portadas reales en la biblioteca.
@@ -33,6 +37,12 @@ probado en un emulador ARM64 con Android 16 (API 37).
 | Ajustes | ✅ | Tema oscuro, fondo de lectura, tamaño de fuente, versión real |
 | Menú principal | ✅ | Buscar, ajustes y marcadores abren sus pantallas |
 | Borrar libro | ✅ | Confirmación, borra copia interna, marcadores, posición e historial |
+| Extracción EPUB cacheada (1.4.3) | ✅ | 1.ª apertura «EPUB extracted to cache»; reaperturas «EPUB extraction cache hit» con la misma clave; miss reproducido tras limpiar el caché en el dispositivo |
+| Portadas en caché de memoria (1.4.3) | ✅ | portada real (Don Quijote) pintada en ~10 reingresos a la biblioteca, sin re-decodificado ni crash |
+| Posición en hilo de escritura (1.4.3) | ✅ | `page:2` (PDF) y `chapter:89:0.239` (EPUB) persistidos tras onPause; restauración exacta a «Capítulo 90 / 147 · 60%» |
+| Crash «connection pool» (fix 1.4.3) | ✅ | el flujo que crasheaba (importar PDF → abrir) ×3 + 9 aperturas de lector: 0 `FATAL EXCEPTION` |
+| «Resaltar»/«Nota» (fix 1.4.3) | ✅ | tap real en el menú (overflow ⋮): `HL capture: saved s=40 e=48` → fila `'extrañas'`; nota → fila `'extrañas'` + `prueba nota 1.4.3`; 7 renders con `typeof window.HL == "object"` (antes: `"undefined"` desde el render #2) |
+| Tests unitarios y lint (1.4.3) | ✅ | `./gradlew test lintRelease` BUILD SUCCESSFUL, 0 fallos (46 tests × 2 variantes); lint 0 errores, 128 avisos preexistentes |
 
 ## Arquitectura
 
@@ -40,7 +50,11 @@ probado en un emulador ARM64 con Android 16 (API 37).
 app/src/main/java/com/example/lectormobile/
 ├── MainActivity.java          Biblioteca, búsqueda, importación SAF, intents VIEW/SEND
 ├── ReaderActivity.java        Lector PDF/EPUB, progreso, posición, marcadores
+├── CoverStore.java           Portadas: extracción EPUB/PDF y caché en disco
 ├── EPUBParser.java            Parser EPUB v3: container.xml, OPF, spine, nav.xhtml, toc.ncx
+├── ExtractionCache.java       Caché en disco de extracciones EPUB (LRU, v1.4.3)
+├── SizeLruCache.java          Caché LRU con presupuesto en bytes (portadas, v1.4.3)
+├── SerialWriter.java          Escritor SQLite de una hebra FIFO (posiciones, v1.4.3)
 ├── TOCDialog.java             Diálogo del índice EPUB
 ├── BookmarksActivity.java     Lista de marcadores de todos los libros
 ├── BookmarksAdapter.java      Adaptador de marcadores
@@ -117,8 +131,9 @@ $ANDROID_HOME/build-tools/36.0.0/apksigner sign \
 
 ## Limitaciones conocidas
 
-- Los EPUB se extraen a `cacheDir` en cada apertura (se limpian al cerrar; no
-  persisten). Para libros muy grandes conviene moverlos a `filesDir`.
+- El caché de extracción EPUB (`filesDir/epub_cache`) conserva hasta 6 libros;
+  al borrar un libro su entrada cacheada no se elimina de inmediato, se libera
+  por LRU. Solo ocupa datos derivados (se regeneran abriendo el libro).
 - No hay soporte de DRM (Adobe/Readium) ni de EPUB con fuentes cifradas.
 - El escaneo de almacenamiento compartido es «best effort» y solo funciona en
   versiones con permiso de lectura concedido.

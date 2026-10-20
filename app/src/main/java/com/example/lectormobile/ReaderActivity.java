@@ -303,6 +303,18 @@ public class ReaderActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new AnnotationBridge(), "LectorAnnotations");
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(android.webkit.WebView view, String url,
+                    android.graphics.Bitmap favicon) {
+                // Every load swaps in a brand-new document: window.HL and the
+                // painted highlight spans die with it, so drop the latch and
+                // let onPageFinished rebuild both (spec S4: without this,
+                // every capture after the first render returned null and
+                // answered «No se pudo capturar la selección»).
+                annotationsJsReady = false;
+                super.onPageStarted(view, url, favicon);
+            }
+
+            @Override
             public void onPageFinished(android.webkit.WebView view, String url) {
                 applyPendingRestore();
                 applyAnnotations();
@@ -1266,16 +1278,17 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void addAnnotationItems(final android.view.ActionMode mode, Menu menu) {
         if (menu.findItem(MENU_ITEM_HIGHLIGHT) != null) return; // already added
+        Log.d(TAG, "HL menu: injecting Resaltar/Nota into action mode");
         menu.add(Menu.NONE, MENU_ITEM_HIGHLIGHT, Menu.NONE, "Resaltar")
                 .setOnMenuItemClickListener(item -> {
-                    captureSelection(null);
-                    mode.finish();
+                    // The capture callback finishes the mode: finishing here,
+                    // before sel() runs, can drop the DOM selection (S4).
+                    captureSelection(mode);
                     return true;
                 });
         menu.add(Menu.NONE, MENU_ITEM_NOTE, Menu.NONE, "Nota")
                 .setOnMenuItemClickListener(item -> {
-                    captureSelectionPromptNote();
-                    mode.finish();
+                    captureSelectionPromptNote(mode);
                     return true;
                 });
     }
@@ -1344,51 +1357,115 @@ public class ReaderActivity extends AppCompatActivity {
         }
     }
 
+    /** Receives the live selection; s < 0 means «could not capture» (S4). */
+    private interface SelectionSink {
+        void onSelection(int s, int e, String text);
+    }
+
     /**
-     * Read the current WebView selection as {start,end,text} and insert it
-     * as an annotation (spec S1). promptForNote opens the note dialog first.
+     * Read the current WebView selection as {s,e,text}. The read happens
+     * before the action mode is finished and before the note dialog opens:
+     * both events can drop the DOM selection (v1.4.2 bug: captures answered
+     * «No se pudo capturar la selección»).
      */
-    private void captureSelection(String presetNote) {
+    private void readSelection(final SelectionSink sink) {
         webView.evaluateJavascript("window.HL && window.HL.sel()", value -> {
-            if (value == null || "null".equals(value)) {
-                Toast.makeText(this, "No se pudo capturar la selección",
-                        Toast.LENGTH_SHORT).show();
+            if (value == null || "null".equals(value)
+                    || "undefined".equals(value)) {
+                Log.d(TAG, "HL capture: selection invalid (null)");
+                sink.onSelection(-1, -1, null);
                 return;
             }
             try {
-                JSONObject sel = new JSONObject(value);
+                // HL.sel() answers with a JSON string and evaluateJavascript
+                // serializes that string again: unwrap the outer encoding
+                // before parsing (found by the real-tap E2E: otherwise
+                // JSONException swallowed every successful selection).
+                Object parsed = new org.json.JSONTokener(value).nextValue();
+                if (parsed instanceof String) {
+                    parsed = new org.json.JSONTokener((String) parsed)
+                            .nextValue();
+                }
+                if (!(parsed instanceof JSONObject)) {
+                    Log.d(TAG, "HL capture: selection invalid (not an object)");
+                    sink.onSelection(-1, -1, null);
+                    return;
+                }
+                JSONObject sel = (JSONObject) parsed;
                 int s = sel.getInt("s");
                 int e = sel.getInt("e");
                 String text = sel.optString("text", "");
-                if (e <= s || text.trim().isEmpty()) return;
-                String note = presetNote != null && !presetNote.trim().isEmpty()
-                        ? presetNote.trim() : null;
-                long id = dbHelper.insertAnnotation(
-                        bookPath, currentChapterIndex, s, e, text, note);
-                webView.evaluateJavascript("window.HL.clear()", null);
-                applyAnnotations();
-                Toast.makeText(this,
-                        note != null ? R.string.annotation_note_saved
-                                : R.string.annotation_highlighted,
-                        Toast.LENGTH_SHORT).show();
+                if (e <= s || text.trim().isEmpty()) {
+                    Log.d(TAG, "HL capture: selection invalid (empty)");
+                    sink.onSelection(-1, -1, null);
+                    return;
+                }
+                sink.onSelection(s, e, text);
             } catch (Exception ex) {
-                Log.e(TAG, "Error saving annotation", ex);
+                Log.e(TAG, "Error reading selection", ex);
+                sink.onSelection(-1, -1, null);
             }
         });
     }
 
-    /** Ask for the note text, then save the selection with it (spec S1). */
-    private void captureSelectionPromptNote() {
-        android.widget.EditText input = new android.widget.EditText(this);
-        input.setHint(R.string.annotation_note_hint);
-        input.setSingleLine(false);
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.annotation_note_title)
-                .setView(input)
-                .setPositiveButton(android.R.string.ok,
-                        (dlg, w) -> captureSelection(input.getText().toString()))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+    /** Insert the captured selection as an annotation (spec S1) and repaint. */
+    private void saveAnnotation(int s, int e, String text, String presetNote) {
+        try {
+            String note = presetNote != null && !presetNote.trim().isEmpty()
+                    ? presetNote.trim() : null;
+            dbHelper.insertAnnotation(
+                    bookPath, currentChapterIndex, s, e, text, note);
+            Log.d(TAG, "HL capture: saved s=" + s + " e=" + e
+                    + (note != null ? " (note)" : ""));
+            webView.evaluateJavascript("window.HL.clear()", null);
+            applyAnnotations();
+            Toast.makeText(this,
+                    note != null ? R.string.annotation_note_saved
+                            : R.string.annotation_highlighted,
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception ex) {
+            Log.e(TAG, "Error saving annotation", ex);
+        }
+    }
+
+    /** «Resaltar» (spec S1, S4): capture first, finish the mode after. */
+    private void captureSelection(final android.view.ActionMode mode) {
+        readSelection((s, e, text) -> {
+            if (s < 0) {
+                Toast.makeText(this, "No se pudo capturar la selección",
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                saveAnnotation(s, e, text, null);
+            }
+            mode.finish();
+        });
+    }
+
+    /**
+     * «Nota» (spec S1, S4): capture the selection first, then ask for the
+     * note text — the dialog opens only once s/e/text are already in hand.
+     */
+    private void captureSelectionPromptNote(final android.view.ActionMode mode) {
+        readSelection((s, e, text) -> {
+            if (s < 0) {
+                Toast.makeText(this, "No se pudo capturar la selección",
+                        Toast.LENGTH_SHORT).show();
+                mode.finish();
+                return;
+            }
+            mode.finish();
+            android.widget.EditText input = new android.widget.EditText(this);
+            input.setHint(R.string.annotation_note_hint);
+            input.setSingleLine(false);
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.annotation_note_title)
+                    .setView(input)
+                    .setPositiveButton(android.R.string.ok,
+                            (dlg, w) -> saveAnnotation(s, e, text,
+                                    input.getText().toString()))
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
     }
 
     /**
@@ -1398,6 +1475,10 @@ public class ReaderActivity extends AppCompatActivity {
     private void applyAnnotations() {
         if (isPdf || webView == null || bookPath == null) return;
         ensureAnnotationsJs();
+        // Diagnostic (v1.4.3): window.HL lives in the rendered document and
+        // dies with every render; log its state per chapter load.
+        webView.evaluateJavascript("typeof window.HL",
+                v -> Log.d(TAG, "HL typeof after render: " + v));
         android.database.Cursor c = null;
         try {
             c = dbHelper.getAnnotations(bookPath, currentChapterIndex);
@@ -1431,9 +1512,13 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     private void ensureAnnotationsJs() {
-        if (annotationsJsReady) return;
+        if (annotationsJsReady) {
+            Log.d(TAG, "HL js: skip (latch still ready)");
+            return;
+        }
         webView.evaluateJavascript(JS_ANNOTATIONS, null);
         annotationsJsReady = true;
+        Log.d(TAG, "HL js: injected");
     }
 
     /** JS string literal with single quotes escaped (note text). */

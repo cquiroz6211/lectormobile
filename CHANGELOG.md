@@ -24,6 +24,16 @@
 
 ### Corregido
 
+- **«Resaltar»/«Nota» fallaban en todos los capítulos salvo el primero**
+  (reportado por el usuario en 1.4.2, con el toast «No se pudo capturar la
+  selección»): `window.HL` se inyectaba una sola vez por sesión, pero cada
+  render crea un documento nuevo en el WebView, así que desde el segundo
+  render toda captura devolvía null. El latch se reinicia en `onPageStarted`
+  y el JS se re-inyecta en cada carga (verificado en emulador: renders
+  seguidos con `typeof window.HL === "object"` tras el fix; antes,
+  `"undefined"` desde el render #2). Además, la selección se lee ahora
+  **antes** de cerrar el ActionMode y **antes** de abrir el diálogo de nota,
+  para que esas acciones no descarten la selección pendiente de capturar.
 - **Crash «connection pool has been closed» al abrir un libro** (detectado en
   la verificación de esta versión): `BookmarksDBHelper` cerraba la base de
   datos al final de **cada** método; con los guardados de posición pasados a
@@ -35,8 +45,11 @@
 ### Técnico
 
 - Nuevas clases puras Java con tests unitarios: `ExtractionCache`,
-  `SizeLruCache` y `SerialWriter`. 46 tests unitarios en verde y
-  `lintRelease` con 0 avisos.
+  `SizeLruCache` y `SerialWriter`. 92 ejecuciones de tests (46 × 2 variantes)
+  en verde y `lintRelease` con 0 errores (128 avisos preexistentes, ninguno
+  en los archivos nuevos).
+- Diagnóstico logcat de anotaciones: estado de `window.HL` por render,
+  inyección del menú y resultado de cada captura.
 - `versionCode` 9 / `versionName` 1.4.3.
 
 ## [1.4.2] — 2026-10-20
