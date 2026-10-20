@@ -19,11 +19,11 @@ Offsets = posición global de caracteres sobre el **texto renderizado** del cap�
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | S2 | inline — DB v5: tabla `annotations` + CRUD en `BookmarksDBHelper` (+ deleteAnnotationsForPath en deleteBook) | pendiente |
-| T2 | S1, S3 | inline — `ReaderActivity`: JS de selección/offsets/apply (inline en constantes), ActionMode con Resaltar/Nota, diálogo de nota, re-aplicar tras onPageFinished | pendiente |
-| T3 | S4 | inline — `AnnotationsActivity` + adapter + layout + entradas de menú (reader + main) + navegación con salto (extra chapter + JS scrollIntoView) | pendiente |
-| T4 | S2-S4 | inline — docs (CHANGELOG/BACKLOG/README) + bump 1.4.0 (versionCode 6) | pendiente |
-| T5 | S2-S4 | inline — verificación en emulador: flujo completo (seleccionar → resaltar → nota → reabrir → persistido → lista → salto), migración v4→v5 con datos, tests existentes, release firmado | pendiente |
+| T1 | S2 | DB v5 tabla annotations + CRUD | `b91e739` |
+| T2 | S1, S3 | JS HL.*, ActionMode wrapper, nota dialog, re-apply | `b91e739` + fix commit |
+| T3 | S4 | AnnotationsActivity + adapter + layouts + menús (subagente) | incluido en `b91e739` |
+| T4 | S2-S4 | docs + bump 1.4.0 | incluido en `b91e739` |
+| T5 | S2-S4 | verificado (detalle en L3) | merge `e4a25ce` |
 
 Test-first: la lógica crítica (offsets, wrap, re-apply) vive en JavaScript dentro del WebView — no hay runner JUnit aplicable; se verifica funcional y determinísticamente en emulador (T5). La parte Java es SQL + UI.
 
@@ -31,3 +31,5 @@ Test-first: la lógica crítica (offsets, wrap, re-apply) vive en JavaScript den
 
 - **L1** — "hagamos subrayado y notas".
 - **L2** — decisión de producto vía ask_user_question: "EPUB: subrayado + notas (recomendado)"; PDF queda fuera (el visor no expone selección de texto). Anchoring por offsets de texto renderizado (ver arriba).
+
+- **L3** — Verificación T5 (emulador): migración v4→v5 in-place OK (user_version 5, tabla annotations, datos preservados). S3 verificado: anotación sembrada en DB (capítulo 14, offsets 1200-1500) se pinta como marca amarilla al reabrir (1872 px). S4 verificado: lista muestra texto/nota/libro/capítulo; tap → abre capítulo correcto y scrollIntoView centra la marca (9464 px amarillos). **No verificado por automatización**: el tap en «Resaltar»/«Nota» del menú flotante de selección — el emulador no expone la toolbar flotante (uiautomator ciego; pixel-hunting no determinístico). Evidencia parcial: la selección funciona (el sistema compartió el texto seleccionado), `onActionModeStarted` dispara (log), y los ítems se inyectan pre-build vía wrapper. **Pendiente del usuario**: verificar en el teléfono real que al seleccionar texto aparecen Resaltar/Nota y que guardan.
