@@ -33,18 +33,25 @@ public class SerialWriter {
      * Queues a write; runs in FIFO order, off the caller's thread. A write
      * that throws is logged and skipped instead of killing the process (an
      * uncaught exception on any Android thread crashes the app) and never
-     * blocks the writes queued behind it.
+     * blocks the writes queued behind it. A write queued after
+     * {@link #shutdown()} (e.g. a debounced save firing during onDestroy) is
+     * dropped with a log for the same reason: RejectedExecutionException on
+     * the main thread would kill the app.
      */
     public void write(Runnable task) {
         if (task == null) return;
-        executor.execute(() -> {
-            try {
-                task.run();
-            } catch (Exception e) {
-                System.err.println("SerialWriter: write failed: " + e);
-                e.printStackTrace();
-            }
-        });
+        try {
+            executor.execute(() -> {
+                try {
+                    task.run();
+                } catch (Exception e) {
+                    System.err.println("SerialWriter: write failed: " + e);
+                    e.printStackTrace();
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            System.err.println("SerialWriter: write dropped (writer shut down)");
+        }
     }
 
     /**
@@ -55,6 +62,16 @@ public class SerialWriter {
      *         timeout or internal failure (queued writes are never dropped)
      */
     public boolean flush(long timeoutMs) {
+        if (executor.isShutdown()) {
+            // No new barrier is accepted, but shutdown() still runs the
+            // queued writes: wait for them to drain instead.
+            try {
+                return executor.awaitTermination(timeoutMs, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
         Future<?> barrier = executor.submit(() -> { });
         try {
             barrier.get(timeoutMs, TimeUnit.MILLISECONDS);

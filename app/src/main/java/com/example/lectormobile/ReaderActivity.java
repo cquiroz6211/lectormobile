@@ -1244,6 +1244,13 @@ public class ReaderActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        // Stop pending debounced saves BEFORE tearing the WebView down: the
+        // about:blank load can schedule another save (700 ms) that must never
+        // reach the shut-down writer — SerialWriter drops it as a backstop,
+        // because RejectedExecutionException on the main thread would kill
+        // the process (defect found by the v1.4.3 independent review).
+        handler.removeCallbacks(savePositionRunnable);
+        positionWriter.shutdown();
         if (webView != null) {
             webView.loadUrl("about:blank");
             webView.clearHistory();
@@ -1256,10 +1263,8 @@ public class ReaderActivity extends AppCompatActivity {
             pdfView = null;
         }
         if (dbHelper != null) {
-            // Optimization S3: drain pending position writes before closing
-            // the database, then stop the writer.
+            // Drain the writes queued before shutdown, then close the database.
             positionWriter.flush(2000);
-            positionWriter.shutdown();
             dbHelper.close();
         }
         super.onDestroy();

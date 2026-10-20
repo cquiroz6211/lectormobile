@@ -24,6 +24,13 @@
 
 ### Corregido
 
+- **Crash latente al cerrar el lector** (hallado por la revisión
+  independiente de esta versión): un guardado de posición diferido podía
+  llegar después de apagar el escritor en `onDestroy` y lanzar
+  `RejectedExecutionException` en el hilo principal, que mata el proceso.
+  El escritor ahora descarta con log esas escrituras tardías, `flush` espera
+  la cola ya apagada y `onDestroy` cancela el debounce y apaga el escritor
+  antes de desmontar el WebView.
 - **«Resaltar»/«Nota» fallaban en todos los capítulos salvo el primero**
   (reportado por el usuario en 1.4.2, con el toast «No se pudo capturar la
   selección»): `window.HL` se inyectaba una sola vez por sesión, pero cada

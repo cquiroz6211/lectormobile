@@ -114,4 +114,41 @@ public class SerialWriterTest {
             writer.shutdown();
         }
     }
+
+    @Test(timeout = 5000)
+    public void writeAfterShutdownIsDroppedWithoutThrowing() {
+        SerialWriter writer = new SerialWriter();
+        List<String> log = Collections.synchronizedList(new ArrayList<>());
+        writer.write(() -> log.add("before"));
+        writer.shutdown();
+
+        // A debounced save firing after onDestroy must not blow up the main
+        // thread (RejectedExecutionException would kill the Android process).
+        writer.write(() -> log.add("after-shutdown"));
+
+        assertTrue(writer.flush(3000));
+        assertEquals(1, log.size());          // queued pre-shutdown write ran
+        assertEquals("before", log.get(0));   // post-shutdown write dropped
+    }
+
+    @Test(timeout = 5000)
+    public void flushAfterShutdownStillDrainsQueuedWrites() throws Exception {
+        SerialWriter writer = new SerialWriter();
+        List<String> log = Collections.synchronizedList(new ArrayList<>());
+        writer.write(() -> {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            log.add("drained");
+        });
+        writer.shutdown();
+
+        // shutdown() still runs queued tasks; flush must wait for them even
+        // though no new barrier can be accepted anymore.
+        assertTrue(writer.flush(3000));
+        assertEquals(1, log.size());
+        assertEquals("drained", log.get(0));
+    }
 }
