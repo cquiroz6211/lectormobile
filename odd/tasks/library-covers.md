@@ -13,11 +13,11 @@ Rama: `feat/library-covers`.
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | S1 | inline — `EPUBParser.extractCover()`: localiza la cover en el OPF y copia el archivo de imagen a destino; tests JUnit con EPUB fixture armado en el test (test-first) | pendiente |
-| T2 | S1, S2 | inline — `CoverStore`: genera/obtiene portadas (EPUB vía T1, PDF vía `PdfRenderer` página 1, tamaño ~256px), cachea en `filesDir/covers` con clave content-based | pendiente |
-| T3 | S3 | inline — `item_book.xml`: ImageView de portada 48×64dp con esquinas redondeadas + fallback; `BooksAdapter` carga async con cancelación por recycle | pendiente |
-| T4 | S1-S3 | inline — docs (CHANGELOG/BACKLOG/README) + bump 1.3.0 (versionCode 5) | pendiente |
-| T5 | S1-S3 | inline — verificación: tests, assembleDebug, emulador (EPUB con cover + PDF con miniatura + fallback), release firmado | pendiente |
+| T1 | S1 | inline — `EPUBParser.extractCover()` + 6 tests JUnit (RED→GREEN) | `7fa4e1e` |
+| T2 | S1, S2 | inline — `CoverStore` (EPUB sin descomprimir todo, PdfRenderer ~256px, cache content-keyed) | `3b54699` |
+| T3 | S3 | inline — `item_book.xml` portada 48×64 + `BooksAdapter` async con tag-guard | `3b54699` |
+| T4 | S1-S3 | docs + bump 1.3.0 | `52470e1` |
+| T5 | S1-S3 | verificado en emulador + release firmado | `95ed428` (merge) |
 
 Delegación: Writer rule no aplica — unidades dependientes (T3 depende de T2 depende de T1), feature única.
 
@@ -25,3 +25,5 @@ Delegación: Writer rule no aplica — unidades dependientes (T3 depende de T2 d
 
 - **L1** — petición: "hagamos esa portada de biblioteca" (feature 1.3 propuesta al cerrar la 1.2.0).
 - **L2** — decisiones de diseño: (a) sin librería de imágenes nueva (BitmapFactory + PdfRenderer de plataforma alcanzan; la app no tiene Glide y no la agregamos por una miniatura); (b) sin persistir bitmaps en DB — archivos en `filesDir/covers/` nombrados por hash del path+mtime+size; (c) ratio 3:4 (48×64dp) uniforme.
+
+- **L3** — Verificación T5: 20/20 tests; portada real del Quijote (JPEG 1200×1800 del OPF) y página 1 del PDF (PNG 198×256) generadas y mostradas. Bug encontrado y corregido en el camino: `app:tint` en el ImageView aplicaba SRC_IN y convertía cualquier portada en un rectángulo sólido primario (`2fb4c91`); el tinte pasó a aplicarse por código solo al fallback.
