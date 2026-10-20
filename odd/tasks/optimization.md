@@ -49,10 +49,10 @@ Rama: `feat/optimization`.
 |----|-------|-------|--------|
 | T1 | S1 | `ExtractionCache` (test-first) + wiring en `ReaderActivity` | `39e9b44` |
 | T2 | S2 | `SizeLruCache` (test-first) + wiring en `BooksAdapter` | `c29cca9` |
-| T3 | S3 | `SerialWriter` (test-first) + wiring en `ReaderActivity` | — |
-| T4 | S1-S3 | CHANGELOG, BACKLOG, README y bump 1.4.3 (versionCode 9) | — |
-| T5 | S1-S3 | verificación: `test`, `lintRelease`, APK en emulador | — |
-| T6 | S4 | fix latch HL + captura de selección pre-finish/pre-diálogo + diagnóstico logcat | — |
+| T3 | S3 | `SerialWriter` (test-first) + wiring en `ReaderActivity` | `94865b5` |
+| T4 | S1-S3 | CHANGELOG, BACKLOG, README y bump 1.4.3 (versionCode 9) | `5918c11` (parcial) |
+| T5 | S1-S3 | verificación: `test`, `lintRelease`, APK en emulador | evidencia en BACKLOG, commit `8a31fb0` |
+| T6 | S4 | fix latch HL + captura de selección pre-finish/pre-diálogo + desanidado JSON + diagnóstico logcat | `8a31fb0` |
 
 Test-first aplicable a los tres núcleos: `ExtractionCache`, `SizeLruCache` y
 `SerialWriter` son clases puras Java (sin Android), unit-testeadas con JUnit.
