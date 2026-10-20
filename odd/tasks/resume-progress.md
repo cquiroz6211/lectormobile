@@ -16,10 +16,10 @@ Rama: `feat/resume-progress`. Specs citan las palabras exactas del usuario/la op
 |----|-------|-------|--------|
 | T1 | S1, S2 | inline — helper puro `ReadingPosition` (parse/format/percent) + tests JUnit, test-first (RED→GREEN) | commit T1 |
 | T2 | S1, S2 | inline — `ReaderActivity`: restaurar scroll EPUB, guardar fraction (debounce + onPause), % en label, guardar total antes del render | commit T2 |
-| T3 | S4 | inline — `BookmarksDBHelper` v4: columna percent, ALTER aditivo, `getAllProgress()`, save con percent | pendiente |
-| T4 | S3 | inline — biblioteca: `BookItem.percent`, sort last-read, barra en `item_book.xml`, bind en `BooksAdapter` | pendiente |
-| T5 | S1-S4 | inline — docs (CHANGELOG/BACKLOG/README) + bump 1.1.0 | pendiente |
-| T6 | S1-S4 | inline — verificación: unit tests, `assembleDebug`, upgrade in-place en emulador (1.0.1→1.1.0 conserva datos), checks funcionales | pendiente |
+| T3 | S4 | inline — `BookmarksDBHelper` v4: columna percent, ALTER aditivo, `getAllProgress()`, save con percent | `91a0d0b` |
+| T4 | S3 | inline — biblioteca: `BookItem.percent`, sort last-read, barra en `item_book.xml`, bind en `BooksAdapter` | `36c75e6` |
+| T5 | S1-S4 | inline — docs (CHANGELOG/BACKLOG/README) + bump 1.1.0 | `e00bc48` |
+| T6 | S1-S4 | inline — verificación: unit tests, `assembleDebug`, upgrade in-place en emulador (1.0.1→1.1.0 conserva datos), checks funcionales | verificado |
 
 Delegación: Writer rule no aplica — las unidades son dependientes entre sí (T2/T3/T4 dependen del formato y helper de T1), una sola feature coherente.
 
