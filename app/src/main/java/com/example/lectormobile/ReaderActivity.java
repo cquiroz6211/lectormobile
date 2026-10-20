@@ -307,10 +307,10 @@ public class ReaderActivity extends AppCompatActivity {
                     scheduleSavePosition();
                 });
 
-        // Extract EPUB in background thread
+        // Extract EPUB in background thread (reusing the extraction cache)
         new Thread(() -> {
             try {
-                // Remove extractions left over from previous sessions
+                // Remove legacy extractions left over in cacheDir by versions < 1.4.3
                 File[] oldDirs = getCacheDir().listFiles(
                         (dir, name) -> name.startsWith("epub_"));
                 if (oldDirs != null) {
@@ -319,13 +319,19 @@ public class ReaderActivity extends AppCompatActivity {
                     }
                 }
 
-                epubExtractDir = new File(getCacheDir(), "epub_" + System.currentTimeMillis());
-                if (epubExtractDir.exists()) {
-                    deleteRecursive(epubExtractDir);
+                // Optimization S1: reuse the previous extraction when the book
+                // file did not change, instead of unzipping on every open.
+                ExtractionCache extractionCache = new ExtractionCache(
+                        new File(getFilesDir(), "epub_cache"));
+                epubExtractDir = extractionCache.getValidDir(bookFile);
+                if (epubExtractDir != null) {
+                    Log.d(TAG, "EPUB extraction cache hit: " + epubExtractDir.getName());
+                } else {
+                    epubExtractDir = extractionCache.newDirFor(bookFile);
+                    EPUBParser.unzip(bookFile, epubExtractDir);
+                    extractionCache.markComplete(epubExtractDir);
+                    Log.d(TAG, "EPUB extracted to cache: " + epubExtractDir.getName());
                 }
-                epubExtractDir.mkdirs();
-
-                EPUBParser.unzip(bookFile, epubExtractDir);
 
                 // Directory that contains the OPF (e.g. "OEBPS"), used as base
                 // for resolving relative links and images.
