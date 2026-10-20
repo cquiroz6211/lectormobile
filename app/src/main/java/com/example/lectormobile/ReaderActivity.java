@@ -90,7 +90,9 @@ public class ReaderActivity extends AppCompatActivity {
         + "var r=document.createRange();r.setStart(node,a-so);r.setEnd(node,b-so);"
         + "var span=document.createElement('span');"
         + "span.className=note?'hl-note':'hl';span.setAttribute('data-id',id);"
-        + "if(note)span.setAttribute('title',note);"
+        + "if(note){span.setAttribute('title',note);"
+        + "span.setAttribute('data-note',note);"
+        + "span.setAttribute('onclick','LectorAnnotations.showNote(this.getAttribute(\\\"data-note\\\"))');}"
         + "try{r.surroundContents(span);self._map=null;wrapped++;}catch(err){}});"
         + "return wrapped>0;}catch(e){return false;}},"
         + "_map:null,"
@@ -906,9 +908,31 @@ public class ReaderActivity extends AppCompatActivity {
      * Add «Resaltar» / «Nota» to the text-selection action mode (EPUB only).
      */
     @Override
-    public void onActionModeStarted(ActionMode mode) {
-        if (!isPdf && webView != null) {
-            Menu menu = mode.getMenu();
+    public android.view.ActionMode onWindowStartingActionMode(
+            android.view.ActionMode.Callback callback, int type) {
+        if (type == android.view.ActionMode.TYPE_FLOATING && !isPdf && webView != null) {
+            return super.onWindowStartingActionMode(
+                    new AnnotationActionModeCallback(callback), type);
+        }
+        return super.onWindowStartingActionMode(callback, type);
+    }
+
+    /**
+     * Wrap the WebView's floating selection callback so «Resaltar» / «Nota»
+     * exist before the toolbar builds its layout (adding them in
+     * onActionModeStarted leaves the floating toolbar unrendered on some
+     * WebView versions).
+     */
+    private class AnnotationActionModeCallback implements android.view.ActionMode.Callback {
+        private final android.view.ActionMode.Callback delegate;
+
+        AnnotationActionModeCallback(android.view.ActionMode.Callback delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean onCreateActionMode(android.view.ActionMode mode, Menu menu) {
+            boolean result = delegate.onCreateActionMode(mode, menu);
             menu.add("Resaltar").setOnMenuItemClickListener(item -> {
                 captureSelection(null);
                 mode.finish();
@@ -919,8 +943,23 @@ public class ReaderActivity extends AppCompatActivity {
                 mode.finish();
                 return true;
             });
+            return result;
         }
-        super.onActionModeStarted(mode);
+
+        @Override
+        public boolean onPrepareActionMode(android.view.ActionMode mode, Menu menu) {
+            return delegate.onPrepareActionMode(mode, menu);
+        }
+
+        @Override
+        public boolean onActionItemClicked(android.view.ActionMode mode, MenuItem item) {
+            return delegate.onActionItemClicked(mode, item);
+        }
+
+        @Override
+        public void onDestroyActionMode(android.view.ActionMode mode) {
+            delegate.onDestroyActionMode(mode);
+        }
     }
 
     /**
