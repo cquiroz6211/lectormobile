@@ -1,5 +1,14 @@
 # Changelog — LectorMobile
 
+## [1.4.1] — 2026-10-20
+
+### Corregido
+
+- **«Resaltar»/«Nota» no aparecían al seleccionar texto**: la inyección solo
+  cubría el menú flotante; ahora cubre todos los tipos de menú de selección
+  (flotante y primario, según la versión de WebView del dispositivo), con
+  inyección previa a la construcción del menú y refuerzo posterior.
+
 ## [1.4.0] — 2026-10-20
 
 ### Añadido

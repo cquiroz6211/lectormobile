@@ -904,13 +904,40 @@ public class ReaderActivity extends AppCompatActivity {
 
     // ─── Annotations (spec S1, S3) ───
 
+    /** Stable menu item ids for the selection actions. */
+    private static final int MENU_ITEM_HIGHLIGHT = 0x00a00001;
+    private static final int MENU_ITEM_NOTE = 0x00a00002;
+
+    /**
+     * Inject «Resaltar» / «Nota» into a selection menu exactly once (spec S1).
+     * Used both by the callback wrapper (pre-build) and by the safety net in
+     * onActionModeStarted, so any action-mode flavor ends up with the items.
+     */
+    private void addAnnotationItems(final android.view.ActionMode mode, Menu menu) {
+        if (menu.findItem(MENU_ITEM_HIGHLIGHT) != null) return; // already added
+        menu.add(Menu.NONE, MENU_ITEM_HIGHLIGHT, Menu.NONE, "Resaltar")
+                .setOnMenuItemClickListener(item -> {
+                    captureSelection(null);
+                    mode.finish();
+                    return true;
+                });
+        menu.add(Menu.NONE, MENU_ITEM_NOTE, Menu.NONE, "Nota")
+                .setOnMenuItemClickListener(item -> {
+                    captureSelectionPromptNote();
+                    mode.finish();
+                    return true;
+                });
+    }
+
     /**
      * Add «Resaltar» / «Nota» to the text-selection action mode (EPUB only).
+     * Covers every action-mode type; the WebView may start either floating
+     * or primary depending on the installed WebView version.
      */
     @Override
     public android.view.ActionMode onWindowStartingActionMode(
             android.view.ActionMode.Callback callback, int type) {
-        if (type == android.view.ActionMode.TYPE_FLOATING && !isPdf && webView != null) {
+        if (!isPdf && webView != null) {
             return super.onWindowStartingActionMode(
                     new AnnotationActionModeCallback(callback), type);
         }
@@ -918,10 +945,23 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Wrap the WebView's floating selection callback so «Resaltar» / «Nota»
-     * exist before the toolbar builds its layout (adding them in
-     * onActionModeStarted leaves the floating toolbar unrendered on some
-     * WebView versions).
+     * Safety net: when the WebView started its action mode without going
+     * through our wrapper (or ignored it), add the items here and invalidate
+     * so the toolbar rebuilds with them.
+     */
+    @Override
+    public void onActionModeStarted(ActionMode mode) {
+        if (!isPdf && webView != null && mode.getMenu() != null
+                && mode.getMenu().findItem(MENU_ITEM_HIGHLIGHT) == null) {
+            addAnnotationItems(mode, mode.getMenu());
+            mode.invalidate();
+        }
+        super.onActionModeStarted(mode);
+    }
+
+    /**
+     * Wrap the WebView's selection callback so «Resaltar» / «Nota» exist
+     * before the toolbar builds its layout (pre-build injection).
      */
     private class AnnotationActionModeCallback implements android.view.ActionMode.Callback {
         private final android.view.ActionMode.Callback delegate;
@@ -933,16 +973,7 @@ public class ReaderActivity extends AppCompatActivity {
         @Override
         public boolean onCreateActionMode(android.view.ActionMode mode, Menu menu) {
             boolean result = delegate.onCreateActionMode(mode, menu);
-            menu.add("Resaltar").setOnMenuItemClickListener(item -> {
-                captureSelection(null);
-                mode.finish();
-                return true;
-            });
-            menu.add("Nota").setOnMenuItemClickListener(item -> {
-                captureSelectionPromptNote();
-                mode.finish();
-                return true;
-            });
+            addAnnotationItems(mode, menu);
             return result;
         }
 
