@@ -14,6 +14,12 @@ import java.util.HashMap;
  *   - bookmarks (id, book_path, bookmark_value, timestamp, label)
  *   - reading_history (id, book_path, last_read_at, times_read)
  *   - reading_positions (id, book_path, position, updated_at, percent)  [v4]
+ *
+ * <p>The connection is owned by this helper: methods must NOT call
+ * {@code db.close()} when they finish (they used to). Per-call closes dispose
+ * the shared connection pool, which races with the background position writer
+ * added in v1.4.3 and reopened the database on every single call. The helper
+ * is closed once via {@link #close()} from the activity lifecycle.
  */
 public class BookmarksDBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "lectormobile.db";
@@ -135,7 +141,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
             db.insertWithOnConflict(TABLE_POSITIONS, null, values,
                     SQLiteDatabase.CONFLICT_REPLACE);
         }
-        db.close();
     }
 
     public String getReadingPosition(String bookPath) {
@@ -150,7 +155,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
             position = cursor.getString(0);
         }
         cursor.close();
-        db.close();
         return position;
     }
 
@@ -159,7 +163,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int deleted = db.delete(TABLE_POSITIONS,
                 COLUMN_BOOK_PATH + " = ?", new String[]{bookPath});
-        db.close();
         return deleted;
     }
 
@@ -177,7 +180,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
             progress.put(cursor.getString(0), cursor.getInt(1));
         }
         cursor.close();
-        db.close();
         return progress;
     }
 
@@ -191,7 +193,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         values.put(COLUMN_TIMESTAMP, System.currentTimeMillis());
         values.put(COLUMN_LABEL, label);
         long id = db.insert(TABLE_BOOKMARKS, null, values);
-        db.close();
         return id;
     }
 
@@ -225,7 +226,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_BOOKMARKS, COLUMN_ID + " = ?",
             new String[]{String.valueOf(id)});
-        db.close();
         return rows;
     }
 
@@ -233,7 +233,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_BOOKMARKS, COLUMN_BOOK_PATH + " = ?",
             new String[]{bookPath});
-        db.close();
         return rows;
     }
 
@@ -245,7 +244,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
             new String[]{bookPath, bookmarkValue});
         boolean exists = cursor.getCount() > 0;
         cursor.close();
-        db.close();
         return exists;
     }
 
@@ -253,7 +251,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_BOOKMARKS, COLUMN_BOOK_PATH + " = ?",
             new String[]{bookPath});
-        db.close();
         return rows;
     }
 
@@ -283,7 +280,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         }
 
         cursor.close();
-        db.close();
     }
 
     public Cursor getRecentBooks(int limit) {
@@ -298,14 +294,12 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_HISTORY, COLUMN_BOOK_PATH + " = ?",
             new String[]{bookPath});
-        db.close();
         return rows;
     }
 
     public int clearHistory() {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_HISTORY, null, null);
-        db.close();
         return rows;
     }
 
@@ -324,7 +318,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         values.put(COLUMN_NOTE, note);
         values.put(COLUMN_TIMESTAMP, System.currentTimeMillis());
         long id = db.insert(TABLE_ANNOTATIONS, null, values);
-        db.close();
         return id;
     }
 
@@ -357,7 +350,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_ANNOTATIONS, COLUMN_ID + " = ?",
                 new String[]{String.valueOf(id)});
-        db.close();
         return rows;
     }
 
@@ -365,7 +357,6 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_ANNOTATIONS, COLUMN_BOOK_PATH + " = ?",
                 new String[]{bookPath});
-        db.close();
         return rows;
     }
 }

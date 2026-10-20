@@ -63,5 +63,21 @@ El wiring en Activities se verifica funcionalmente (T5).
   en cada bind sin caché en memoria; (3) `saveCurrentReadingPosition` escribe
   SQLite en el hilo principal vía el Handler del debounce.
 - **L5** — Frontera de slices: slice 1 = T1 + T2 (`39e9b44`, `c29cca9`);
-  desde T3 en adelante va en el slice 2 (docs + bump + verificación cerran la
-  feature).
+  slice 2 = T3 (`94865b5`); slice 3 = docs + bump + evidencia de verificación
+  cierra la feature.
+- **L6** — S3 ampliado (decisión técnica): una escritura que falla se registra
+  y se salta en `SerialWriter.write` — una excepción no capturada en cualquier
+  hilo de Android mata el proceso, y hoy ese mismo fallo ocurría en el hilo
+  principal durante el debounce. Spec S3 actualizado con este comportamiento.
+- **L7** — **Crash en emulador encontrado por la verificación E2E y corregido**:
+  al importar un PDF (flujo FAB → picker → lector) la app crasheó con
+  `IllegalStateException: connection pool has been closed` en
+  `ReaderActivity.onPrepareOptionsMenu → BookmarksDBHelper.hasBookmark`.
+  Causa raíz: `BookmarksDBHelper` llamaba `db.close()` al final de **cada**
+  método (15 llamadas); con S3, el hilo `serial-writer` cerraba el pool
+  compartido mientras el hilo principal tenía un `rawQuery` en vuelo (timeline:
+  display 14:18:49.475 + debounce 700 ms ≈ crash 14:18:49.894). Fix: eliminar
+  los 15 `db.close()` por método — la conexión la posee el helper y se cierra
+  una sola vez en `onDestroy` (además elimina el reopen en cada consulta).
+  Sin runner JUnit local para SQLite (android.database.sqlite es stub en unit
+  tests); se verifica reproduciendo el flujo exacto en emulador (T5).

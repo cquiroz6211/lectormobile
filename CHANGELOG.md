@@ -1,5 +1,44 @@
 # Changelog — LectorMobile
 
+## [1.4.3] — 2026-10-20
+
+### Optimizado
+
+- **Apertura de EPUB sin re-descomprimir**: la extracción del zip se cachea en
+  `filesDir/epub_cache`, identificada por tamaño y fecha de modificación del
+  libro. Abrir un libro sin cambios reutiliza la extracción anterior en lugar
+  de descomprimirlo otra vez (antes se re-extraía en cada apertura). El caché
+  conserva hasta 6 libros (LRU por último uso), descarta extracciones
+  interrumpidas (marcador `.ok`) y sobrevive a la limpieza de caché del
+  sistema; solo guarda datos derivados, nunca toca libros ni datos del usuario.
+- **Portadas sin re-decodificado**: los bitmaps de portada ya decodificados se
+  mantienen en una caché LRU en memoria de 8 MB (`SizeLruCache`); al desplazar
+  la biblioteca las portadas se pintan al instante sin volver a decodificar el
+  archivo en cada bind. Los bitmaps cacheados ya no se reciclan.
+- **Posiciones de lectura fuera del hilo principal**: el guardado debounceado
+  de la posición (PDF y EPUB) se ejecuta ahora en un hilo de escritura dedicado
+  con orden FIFO (`SerialWriter`); el cálculo sigue en el hilo principal. Al
+  pausar y al cerrar se espera a que las escrituras pendientes terminen antes
+  de cerrar la base de datos, y una escritura fallida se registra sin tumbar la
+  app ni bloquear las siguientes.
+
+### Corregido
+
+- **Crash «connection pool has been closed» al abrir un libro** (detectado en
+  la verificación de esta versión): `BookmarksDBHelper` cerraba la base de
+  datos al final de **cada** método; con los guardados de posición pasados a
+  segundo plano, ese cierre destruía la conexión compartida mientras el hilo
+  principal seguía consultando (menú del lector → `hasBookmark`). Ahora la
+  conexión la posee el helper y se cierra una sola vez al destruir la
+  actividad; de paso se elimina la reapertura de la base en cada consulta.
+
+### Técnico
+
+- Nuevas clases puras Java con tests unitarios: `ExtractionCache`,
+  `SizeLruCache` y `SerialWriter`. 46 tests unitarios en verde y
+  `lintRelease` con 0 avisos.
+- `versionCode` 9 / `versionName` 1.4.3.
+
 ## [1.4.2] — 2026-10-20
 
 ### Añadido
