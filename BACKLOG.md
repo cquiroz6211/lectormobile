@@ -2,7 +2,8 @@
 
 ## Estado actual (2025-10-20)
 
-**Versión 1.3.0 (versionCode 5)** — Portadas reales en la biblioteca.
+**Versión 1.4.0 (versionCode 6)** — Subrayado y notas en EPUB.
+La 1.3.0 (versionCode 5) trajo portadas reales en la biblioteca.
 La 1.2.0 (versionCode 4) trajo el modo oscuro real para PDF.
 La 1.1.0 (versionCode 3) trajo retomar lectura exacta + progreso visible.
 La 1.0.1 (versionCode 2) fue APK release firmado, zipaligned e instalado y

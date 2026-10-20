@@ -477,6 +477,7 @@ public class MainActivity extends AppCompatActivity {
         dbHelper.deleteBookmarksForPath(path);
         dbHelper.deleteReadingPosition(path);
         dbHelper.deleteHistory(path);
+        dbHelper.deleteAnnotationsForPath(path);
         if (coverStore != null) {
             coverStore.invalidate(path);
         }
@@ -506,6 +507,10 @@ public class MainActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.menu_bookmarks) {
             startActivity(new Intent(this, BookmarksActivity.class));
+            return true;
+        } else if (id == R.id.menu_annotations) {
+            // All annotations, all books (spec S4)
+            startActivity(new Intent(this, AnnotationsActivity.class));
             return true;
         }
         return super.onOptionsItemSelected(item);

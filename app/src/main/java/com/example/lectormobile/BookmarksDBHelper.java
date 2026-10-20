@@ -17,10 +17,11 @@ import java.util.HashMap;
  */
 public class BookmarksDBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "lectormobile.db";
-    private static final int DATABASE_VERSION = 4;
+    private static final int DATABASE_VERSION = 5;
     private static final String TABLE_BOOKMARKS = "bookmarks";
     private static final String TABLE_HISTORY = "reading_history";
     private static final String TABLE_POSITIONS = "reading_positions";
+    private static final String TABLE_ANNOTATIONS = "annotations";
 
     private static final String COLUMN_ID = "id";
     private static final String COLUMN_BOOK_PATH = "book_path";
@@ -32,6 +33,11 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
     private static final String COLUMN_LAST_READ = "last_read_at";
     private static final String COLUMN_TIMES_READ = "times_read";
     private static final String COLUMN_PERCENT = "percent";
+    private static final String COLUMN_CHAPTER = "chapter_index";
+    private static final String COLUMN_START = "start_offset";
+    private static final String COLUMN_END = "end_offset";
+    private static final String COLUMN_TEXT = "text";
+    private static final String COLUMN_NOTE = "note";
 
     private static final String CREATE_TABLE_BOOKMARKS =
         "CREATE TABLE IF NOT EXISTS " + TABLE_BOOKMARKS + " (" +
@@ -56,6 +62,17 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         COLUMN_UPDATED_AT + " INTEGER NOT NULL, " +
         COLUMN_PERCENT + " INTEGER NOT NULL DEFAULT 0)";
 
+    private static final String CREATE_TABLE_ANNOTATIONS =
+        "CREATE TABLE IF NOT EXISTS " + TABLE_ANNOTATIONS + " (" +
+        COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        COLUMN_BOOK_PATH + " TEXT NOT NULL, " +
+        COLUMN_CHAPTER + " INTEGER NOT NULL, " +
+        COLUMN_START + " INTEGER NOT NULL, " +
+        COLUMN_END + " INTEGER NOT NULL, " +
+        COLUMN_TEXT + " TEXT, " +
+        COLUMN_NOTE + " TEXT, " +
+        COLUMN_TIMESTAMP + " INTEGER NOT NULL)";
+
     public BookmarksDBHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -65,6 +82,7 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         db.execSQL(CREATE_TABLE_BOOKMARKS);
         db.execSQL(CREATE_TABLE_HISTORY);
         db.execSQL(CREATE_TABLE_POSITIONS);
+        db.execSQL(CREATE_TABLE_ANNOTATIONS);
     }
 
     @Override
@@ -73,6 +91,7 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         db.execSQL(CREATE_TABLE_BOOKMARKS);
         db.execSQL(CREATE_TABLE_HISTORY);
         db.execSQL(CREATE_TABLE_POSITIONS);
+        db.execSQL(CREATE_TABLE_ANNOTATIONS); // v4 -> v5 (additive)
 
         // v3 -> v4: reading progress percent (0..100, 0 = not read yet).
         // Additive column; try/catch because CREATE TABLE IF NOT EXISTS above
@@ -286,6 +305,66 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
     public int clearHistory() {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(TABLE_HISTORY, null, null);
+        db.close();
+        return rows;
+    }
+
+    // ─── Annotations (v5) ───
+
+    /** Insert an EPUB highlight/note anchored to the rendered chapter text. */
+    public long insertAnnotation(String bookPath, int chapterIndex,
+            int startOffset, int endOffset, String text, String note) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_BOOK_PATH, bookPath);
+        values.put(COLUMN_CHAPTER, chapterIndex);
+        values.put(COLUMN_START, startOffset);
+        values.put(COLUMN_END, endOffset);
+        values.put(COLUMN_TEXT, text);
+        values.put(COLUMN_NOTE, note);
+        values.put(COLUMN_TIMESTAMP, System.currentTimeMillis());
+        long id = db.insert(TABLE_ANNOTATIONS, null, values);
+        db.close();
+        return id;
+    }
+
+    /** Annotations for a book chapter, ordered by position (spec S3). */
+    public Cursor getAnnotations(String bookPath, int chapterIndex) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        return db.rawQuery(
+            "SELECT * FROM " + TABLE_ANNOTATIONS +
+            " WHERE " + COLUMN_BOOK_PATH + " = ? AND " + COLUMN_CHAPTER + " = ?" +
+            " ORDER BY " + COLUMN_START + " ASC",
+            new String[]{bookPath, String.valueOf(chapterIndex)});
+    }
+
+    /** All annotations, newest first; optionally filtered by book (spec S4). */
+    public Cursor getAllAnnotations(String bookPath) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        if (bookPath != null) {
+            return db.rawQuery(
+                "SELECT * FROM " + TABLE_ANNOTATIONS +
+                " WHERE " + COLUMN_BOOK_PATH + " = ?" +
+                " ORDER BY " + COLUMN_TIMESTAMP + " DESC",
+                new String[]{bookPath});
+        }
+        return db.rawQuery(
+            "SELECT * FROM " + TABLE_ANNOTATIONS +
+            " ORDER BY " + COLUMN_TIMESTAMP + " DESC", null);
+    }
+
+    public int deleteAnnotation(long id) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int rows = db.delete(TABLE_ANNOTATIONS, COLUMN_ID + " = ?",
+                new String[]{String.valueOf(id)});
+        db.close();
+        return rows;
+    }
+
+    public int deleteAnnotationsForPath(String bookPath) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int rows = db.delete(TABLE_ANNOTATIONS, COLUMN_BOOK_PATH + " = ?",
+                new String[]{bookPath});
         db.close();
         return rows;
     }

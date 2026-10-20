@@ -102,4 +102,15 @@
     <string name="page_number">Página %1$d</string>
     <string name="chapter_number">Capítulo %1$d</string>
     <string name="progress_percent">%1$d%%</string>
+    <string name="annotation_highlighted">Texto resaltado</string>
+    <string name="annotation_note_saved">Nota guardada</string>
+    <string name="annotation_note_title">Nota</string>
+    <string name="annotation_note_hint">Escribí tu nota…</string>
+
+    <!-- Annotations list (S4) -->
+    <string name="annotations_title">Notas y subrayados</string>
+    <string name="annotations_empty">Sin notas ni subrayados</string>
+    <string name="annotation_chapter">Capítulo %1$d</string>
+    <string name="action_annotations">Notas y subrayados</string>
+    <string name="item_annotation_delete_desc">Eliminar anotación</string>
 </resources>
