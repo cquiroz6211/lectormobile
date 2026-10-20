@@ -26,8 +26,7 @@
             android:layout_height="64dp"
             android:contentDescription="@string/item_book_icon_desc"
             android:scaleType="centerCrop"
-            app:srcCompat="@drawable/ic_pdf"
-            app:tint="@color/primary" />
+            app:srcCompat="@drawable/ic_pdf" />
 
         <!-- Book Info -->
         <LinearLayout

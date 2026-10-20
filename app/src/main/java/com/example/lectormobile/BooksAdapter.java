@@ -172,6 +172,7 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
             mainHandler.post(() -> {
                 if (bookPath.equals(holder.bookCover.getTag())) {
                     holder.bookCover.setColorFilter(null);
+                    holder.bookCover.setImageTintList(null);
                     holder.bookCover.setImageBitmap(bmp);
                 } else {
                     bmp.recycle();
