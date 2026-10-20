@@ -4,7 +4,14 @@
 Lector de PDF y EPUB para Android con modo oscuro y bookmarks. Producto listo para Play Store.
 
 ## 🎯 Estado Actual
-**✅ Build exitoso - APK compilado** (2025-10-19 23:33 UTC)
+**✅ APK firmado e instalable** (2025-10-20 07:54 UTC)
+
+### Fix: APK signing (Critical)
+- **Problema**: APK anterior firmado con `jarsigner` → solo v1 signature → Android no lo instala (requiere v2+ para targetSdk 34)
+- **Solución**: Usar `apksigner` con v2+v3 schemes + zipalign antes de firmar
+- **Comando**: `apksigner sign --ks lectormobile.keystore --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true LectorMobile-aligned.apk`
+- **Resultado**: Verified v2=true, v3=true, verification successful
+- **APK final**: LectorMobile-1.0.0.apk (2.7MB, firmado, zipaligned, instalable)
 
 ## 📚 Librerías y Versiones Documentadas
 
