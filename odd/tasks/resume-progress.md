@@ -6,7 +6,7 @@ Rama: `feat/resume-progress`. Specs citan las palabras exactas del usuario/la op
 ## Specs
 
 - **S1** — "Guardar posición exacta: `chapter:N:fraction` (scroll %) y restaurarla al abrir": el EPUB reabre en el mismo scroll del capítulo, no arriba. Formato nuevo `chapter:N:fraction`; los formatos viejos (`chapter:N`, `page:N`) siguen parseando igual. Los bookmarks siguen guardando `chapter:N`/`page:N` sin fraction (toggle de bookmark debe seguir funcionando idéntico).
-- **S2** — "% de progreso en el lector (junto a «Página 3/100»)": el texto del lector pasa a "Página 3 / 100 · 2%" (PDF) y "Capítulo 2 / 40 · 6%" (EPUB). Sin total conocido no se muestra % ni se guarda percent.
+- **S2** — "% de progreso en el lector (junto a «Página 3/100»)": el texto del lector pasa a "Página 3 / 100 · 3%" (PDF) y "Capítulo 3 / 40 · 6%" (EPUB). Sin total conocido no se muestra % ni se guarda percent.
 - **S3** — "% + barra de progreso por libro en la biblioteca, orden «Último leído»": cada fila de `item_book` muestra barra de progreso + "42%" (oculto si nunca se abrió); la lista se ordena por `last_read_at` descendente, empates y no-leídos alfabéticamente.
 - **S4** — "Migración aditiva de DB (v4) sin borrar datos": `DATABASE_VERSION` 3→4 agrega `reading_positions.percent`; `onCreate` la crea, `onUpgrade` hace `ALTER TABLE ... ADD COLUMN` con try/catch; nunca DROP/DELETE de datos del usuario. Fila vieja sin percent → 0 hasta la próxima lectura.
 
