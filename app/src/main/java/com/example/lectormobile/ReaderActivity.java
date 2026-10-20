@@ -75,6 +75,13 @@ public class ReaderActivity extends AppCompatActivity {
     private int restoreGeneration = 0;
     private final Runnable savePositionRunnable = this::saveCurrentReadingPosition;
 
+    /**
+     * Optimization S3: SQLite position writes run on this single-threaded
+     * FIFO writer instead of the main thread (computed values are captured
+     * on the caller's thread, the WebView read stays on the main thread).
+     */
+    private final SerialWriter positionWriter = new SerialWriter();
+
     // Annotations (spec S1, S3): pending navigation from the annotations list
     private long jumpAnnotationId = -1;
     private boolean annotationsJsReady = false;
@@ -620,18 +627,22 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void saveCurrentReadingPosition() {
         if (bookPath == null || dbHelper == null) return;
+        final String path = bookPath;
         if (isPdf) {
-            int percent = ReadingPosition.percent(currentPage, 1f, totalPages);
-            dbHelper.saveReadingPosition(bookPath, "page:" + currentPage, percent);
+            final String value = "page:" + currentPage;
+            final int percent = ReadingPosition.percent(currentPage, 1f, totalPages);
+            positionWriter.write(
+                    () -> dbHelper.saveReadingPosition(path, value, percent));
             return;
         }
         if (pendingRestoreFraction >= 0 || restoreInFlight) return;
         currentScrollFraction = computeScrollFraction();
-        String value = new ReadingPosition(
+        final String value = new ReadingPosition(
                 false, currentChapterIndex, currentScrollFraction).format();
-        int percent = ReadingPosition.percent(
+        final int percent = ReadingPosition.percent(
                 currentChapterIndex, currentScrollFraction, totalPages);
-        dbHelper.saveReadingPosition(bookPath, value, percent);
+        positionWriter.write(
+                () -> dbHelper.saveReadingPosition(path, value, percent));
     }
 
     /**
@@ -1183,6 +1194,10 @@ public class ReaderActivity extends AppCompatActivity {
         // Flush the debounced position save (PDF and EPUB, spec S1).
         handler.removeCallbacks(savePositionRunnable);
         saveCurrentReadingPosition();
+        // Optimization S3: the write runs on the writer thread; wait for it
+        // (and anything still queued) so the freshest position is persisted
+        // before the activity goes away.
+        positionWriter.flush(2000);
     }
 
     @Override
@@ -1229,6 +1244,10 @@ public class ReaderActivity extends AppCompatActivity {
             pdfView = null;
         }
         if (dbHelper != null) {
+            // Optimization S3: drain pending position writes before closing
+            // the database, then stop the writer.
+            positionWriter.flush(2000);
+            positionWriter.shutdown();
             dbHelper.close();
         }
         super.onDestroy();
