@@ -499,14 +499,17 @@ public class ReaderActivity extends AppCompatActivity {
     private void saveCurrentReadingPosition() {
         if (bookPath == null || dbHelper == null) return;
         if (isPdf) {
-            dbHelper.saveReadingPosition(bookPath, "page:" + currentPage);
+            int percent = ReadingPosition.percent(currentPage, 1f, totalPages);
+            dbHelper.saveReadingPosition(bookPath, "page:" + currentPage, percent);
             return;
         }
         if (pendingRestoreFraction >= 0 || restoreInFlight) return;
         currentScrollFraction = computeScrollFraction();
         String value = new ReadingPosition(
                 false, currentChapterIndex, currentScrollFraction).format();
-        dbHelper.saveReadingPosition(bookPath, value);
+        int percent = ReadingPosition.percent(
+                currentChapterIndex, currentScrollFraction, totalPages);
+        dbHelper.saveReadingPosition(bookPath, value, percent);
     }
 
     /**
