@@ -5,6 +5,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -60,6 +61,16 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
         }
         holder.bookInfo.setText(info);
 
+        // Reading progress (spec S3): hidden when the book was never opened
+        if (item.percent >= 0) {
+            holder.bookProgress.setVisibility(View.VISIBLE);
+            holder.bookProgressBar.setProgress(item.percent);
+            holder.bookPercent.setText(holder.itemView.getContext()
+                    .getString(R.string.progress_percent, item.percent));
+        } else {
+            holder.bookProgress.setVisibility(View.GONE);
+        }
+
         // Set bookmark star status
         boolean hasBookmark = item.isBookmarked;
         if (hasBookmark) {
@@ -111,12 +122,18 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
         TextView bookName;
         TextView bookInfo;
         ImageView bookStar;
+        View bookProgress;
+        ProgressBar bookProgressBar;
+        TextView bookPercent;
 
         public BookViewHolder(@NonNull View itemView) {
             super(itemView);
             bookName = itemView.findViewById(R.id.item_book_name);
             bookInfo = itemView.findViewById(R.id.item_book_info);
             bookStar = itemView.findViewById(R.id.item_book_star);
+            bookProgress = itemView.findViewById(R.id.item_book_progress);
+            bookProgressBar = itemView.findViewById(R.id.item_book_progress_bar);
+            bookPercent = itemView.findViewById(R.id.item_book_percent);
         }
     }
 }
