@@ -1,5 +1,15 @@
 # Changelog — LectorMobile
 
+## [1.3.0] — 2026-10-20
+
+### Añadido
+
+- **Portadas en la biblioteca**: cada libro muestra su portada real — la
+  imagen declarada como cover en el OPF para EPUB, o un render de la
+  página 1 para PDF. Las portadas se cachean en disco (una sola
+  generación por contenido) y se cargan en segundo plano; si un libro no
+  tiene portada, se mantiene el ícono genérico.
+
 ## [1.2.0] — 2026-10-20
 
 ### Añadido

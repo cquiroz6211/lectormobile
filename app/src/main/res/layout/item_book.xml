@@ -19,15 +19,14 @@
         android:orientation="horizontal"
         android:padding="16dp">
 
-        <!-- Book Icon -->
+        <!-- Book Cover (real cover when available, icon as fallback) -->
         <ImageView
-            android:id="@+id/item_book_icon"
+            android:id="@+id/item_book_cover"
             android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_height="64dp"
             android:contentDescription="@string/item_book_icon_desc"
-            android:padding="8dp"
-            app:srcCompat="@drawable/ic_pdf"
-            app:tint="@color/primary" />
+            android:scaleType="centerCrop"
+            app:srcCompat="@drawable/ic_pdf" />
 
         <!-- Book Info -->
         <LinearLayout

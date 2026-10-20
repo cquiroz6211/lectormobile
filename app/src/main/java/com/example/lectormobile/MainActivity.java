@@ -42,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
     private BooksAdapter booksAdapter;
     private ArrayList<BookItem> bookList;
     private BookmarksDBHelper dbHelper;
+    private CoverStore coverStore;
     private Set<String> bookmarkedPaths;
     private SearchView searchView;
     private String currentSearchQuery = "";
@@ -166,6 +167,8 @@ public class MainActivity extends AppCompatActivity {
                 },
                 dbHelper
         );
+        coverStore = new CoverStore(getApplicationContext());
+        booksAdapter.setCoverStore(coverStore);
         recyclerView.setAdapter(booksAdapter);
 
         // Load bookmarked paths (after adapter exists)
@@ -474,6 +477,9 @@ public class MainActivity extends AppCompatActivity {
         dbHelper.deleteBookmarksForPath(path);
         dbHelper.deleteReadingPosition(path);
         dbHelper.deleteHistory(path);
+        if (coverStore != null) {
+            coverStore.invalidate(path);
+        }
 
         for (int i = 0; i < bookList.size(); i++) {
             if (path.equals(bookList.get(i).path)) {

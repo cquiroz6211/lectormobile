@@ -1,6 +1,10 @@
 package com.example.lectormobile;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,7 +16,12 @@ import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * RecyclerView adapter for the book list screen (MainActivity).
@@ -28,6 +37,13 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
     private ArrayList<MainActivity.BookItem> bookItems;
     private OnBookClickListener listener;
     private BookmarksDBHelper dbHelper;
+    private CoverStore coverStore;
+
+    /** Cover decode/generation runs off the main thread (spec S3). */
+    private final ExecutorService coverExecutor = Executors.newFixedThreadPool(2);
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    /** Books already tried this session: never re-attempt a failed cover. */
+    private final Set<String> coverAttempted = new HashSet<>();
 
     public BooksAdapter(ArrayList<MainActivity.BookItem> bookItems,
                         OnBookClickListener listener,
@@ -35,6 +51,11 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
         this.bookItems = bookItems;
         this.listener = listener;
         this.dbHelper = dbHelper;
+    }
+
+    /** Provide the cover store (app context) for async cover loading. */
+    public void setCoverStore(CoverStore store) {
+        this.coverStore = store;
     }
 
     @NonNull
@@ -52,6 +73,14 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
 
         // Set book name
         holder.bookName.setText(fileName);
+
+        // Cover: fallback icon immediately, real cover when ready (spec S3).
+        // The holder tag guards against recycled views getting a stale cover.
+        holder.bookCover.setTag(item.path);
+        holder.bookCover.setImageResource(R.drawable.ic_pdf);
+        holder.bookCover.setColorFilter(ContextCompat.getColor(
+                holder.itemView.getContext(), R.color.primary));
+        loadCover(holder, item.path);
 
         // Set file info (type and read count)
         String ext = fileName.substring(fileName.lastIndexOf('.') + 1).toUpperCase();
@@ -118,10 +147,59 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
         return null;
     }
 
+    /**
+     * Load the cover for a book off the main thread. Binds only if the
+     * holder still shows the same book path (spec S3). Generation is
+     * attempted once per session per book.
+     */
+    private void loadCover(BookViewHolder holder, String bookPath) {
+        if (coverStore == null || bookPath == null) return;
+        synchronized (coverAttempted) {
+            if (coverAttempted.contains(bookPath)
+                    && coverStore.peek(bookPath) == null) {
+                return; // already failed this session: keep the icon
+            }
+            coverAttempted.add(bookPath);
+        }
+        coverExecutor.execute(() -> {
+            File cover = coverStore.peek(bookPath);
+            if (cover == null) {
+                cover = coverStore.getOrCreate(bookPath);
+            }
+            if (cover == null) return;
+            Bitmap bmp = decodeCover(cover);
+            if (bmp == null) return;
+            mainHandler.post(() -> {
+                if (bookPath.equals(holder.bookCover.getTag())) {
+                    holder.bookCover.setColorFilter(null);
+                    holder.bookCover.setImageTintList(null);
+                    holder.bookCover.setImageBitmap(bmp);
+                } else {
+                    bmp.recycle();
+                }
+            });
+        });
+    }
+
+    /** Decode a cover file downsampled to ~2x the 48x64dp view. */
+    private static Bitmap decodeCover(File file) {
+        try {
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+            opts.inSampleSize = Math.max(1, Math.min(opts.outWidth, opts.outHeight) / 128);
+            opts.inJustDecodeBounds = false;
+            return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public class BookViewHolder extends RecyclerView.ViewHolder {
         TextView bookName;
         TextView bookInfo;
         ImageView bookStar;
+        ImageView bookCover;
         View bookProgress;
         ProgressBar bookProgressBar;
         TextView bookPercent;
@@ -131,6 +209,7 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
             bookName = itemView.findViewById(R.id.item_book_name);
             bookInfo = itemView.findViewById(R.id.item_book_info);
             bookStar = itemView.findViewById(R.id.item_book_star);
+            bookCover = itemView.findViewById(R.id.item_book_cover);
             bookProgress = itemView.findViewById(R.id.item_book_progress);
             bookProgressBar = itemView.findViewById(R.id.item_book_progress_bar);
             bookPercent = itemView.findViewById(R.id.item_book_percent);
