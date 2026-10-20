@@ -2,6 +2,13 @@
 
 ## [1.4.3] — 2026-10-20
 
+### Añadido
+
+- **«Resaltar» y «Nota» visibles en la barra de selección**: los dos ítems se
+  piden ahora con `SHOW_AS_ACTION_ALWAYS` y aparecen junto a «Copy» en la
+  barra flotante al seleccionar texto, en lugar de quedar escondidos en el
+  overflow (⋮).
+
 ### Optimizado
 
 - **Apertura de EPUB sin re-descomprimir**: la extracción del zip se cachea en

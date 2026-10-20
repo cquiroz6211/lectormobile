@@ -1284,18 +1284,23 @@ public class ReaderActivity extends AppCompatActivity {
     private void addAnnotationItems(final android.view.ActionMode mode, Menu menu) {
         if (menu.findItem(MENU_ITEM_HIGHLIGHT) != null) return; // already added
         Log.d(TAG, "HL menu: injecting Resaltar/Nota into action mode");
-        menu.add(Menu.NONE, MENU_ITEM_HIGHLIGHT, Menu.NONE, "Resaltar")
-                .setOnMenuItemClickListener(item -> {
-                    // The capture callback finishes the mode: finishing here,
-                    // before sel() runs, can drop the DOM selection (S4).
-                    captureSelection(mode);
-                    return true;
-                });
-        menu.add(Menu.NONE, MENU_ITEM_NOTE, Menu.NONE, "Nota")
-                .setOnMenuItemClickListener(item -> {
-                    captureSelectionPromptNote(mode);
-                    return true;
-                });
+        // Always shown: without this the system buries both items in the
+        // floating toolbar's overflow and users never find them (spec S5).
+        MenuItem highlight = menu.add(Menu.NONE, MENU_ITEM_HIGHLIGHT,
+                Menu.NONE, "Resaltar");
+        highlight.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        highlight.setOnMenuItemClickListener(item -> {
+            // The capture callback finishes the mode: finishing here,
+            // before sel() runs, can drop the DOM selection (S4).
+            captureSelection(mode);
+            return true;
+        });
+        MenuItem note = menu.add(Menu.NONE, MENU_ITEM_NOTE, Menu.NONE, "Nota");
+        note.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        note.setOnMenuItemClickListener(item -> {
+            captureSelectionPromptNote(mode);
+            return true;
+        });
     }
 
     /**

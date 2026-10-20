@@ -43,6 +43,12 @@ Rama: `feat/optimization`.
   abrir el diálogo de nota; (c) los subrayados existentes se re-aplican en
   cada render (depende de (a)).
 
+- **S5** — **«Resaltar»/«Nota» visibles en la barra flotante (UX)**: pedido del
+  usuario — «en la barra flotante al selección texto quiero que estén copy.
+  resaltar y nota […] nota y resaltar están escondidos». Los dos ítems se
+  agregan con `MenuItem.SHOW_AS_ACTION_ALWAYS` para que aparezcan junto a
+  Copy en la toolbar de selección en vez de quedar solo en el overflow (⋮).
+
 ## Tasks
 
 | ID | Specs | Route | Commit |
@@ -53,6 +59,7 @@ Rama: `feat/optimization`.
 | T4 | S1-S3 | CHANGELOG, BACKLOG, README y bump 1.4.3 (versionCode 9) | `5918c11` (parcial) |
 | T5 | S1-S3 | verificación: `test`, `lintRelease`, APK en emulador | evidencia en BACKLOG, commit `8a31fb0` |
 | T6 | S4 | fix latch HL + captura de selección pre-finish/pre-diálogo + desanidado JSON + diagnóstico logcat | `8a31fb0` |
+| T7 | S5 + defecto mayor del verificador | `setShowAsAction` en Resaltar/Nota + `SerialWriter` tolera escrituras tras `shutdown` (test-first) + `onDestroy` ordena removeCallbacks/shutdown/flush/close | — |
 
 Test-first aplicable a los tres núcleos: `ExtractionCache`, `SizeLruCache` y
 `SerialWriter` son clases puras Java (sin Android), unit-testeadas con JUnit.
@@ -125,3 +132,22 @@ El wiring en Activities se verifica funcionalmente (T5).
   con desanidado doble (JSONTokener). Tests+lint finales: BUILD SUCCESSFUL,
   0 FAILED; lint 0 errores / 128 avisos (ninguno en archivos nuevos).
   Corrección de claim: L3 decía «0 avisos»; era «0 errores».
+- **L11** — Pedido del usuario (S5): «en la barra flotante al selección texto
+  quiero que estén copy. resaltar y nota, es una mejora de UX. nota y resaltar
+  están escondidos».
+- **L12** — Verificación independiente del rango `main..HEAD` (gentle-ai-verify
+  vía assess con escalate item 6): **range VERIFIED** — 92 tests/0 fallos,
+  lint 0 errores, S1 hit + S3 persistencia + S4 Resaltar (`saved s=42 e=45`,
+  fila `'las'`) y Nota (`saved s=83 e=90 (note)`, fila `'sucesos'` +
+  `texto de prueba`) reproducidos por el verificador con E2E propio, 0 FATAL
+  (logcat + dropbox). 5 hallazgos: **1 mayor** — `SerialWriter.write` lanzaba
+  `RejectedExecutionException` si un save debounceado llegaba tras
+  `shutdown()` en `onDestroy` (camino: `about:blank` → `onPageFinished` →
+  debounce 700 ms) → FATAL latente; fix en T7 (drop+log, flush con
+  `awaitTermination`, `removeCallbacks`+`shutdown` al inicio de `onDestroy`)
+  con 2 tests nuevos (RED→GREEN, 48 tests). 4 menores evaluados: flush ≤2 s en
+  onPause aceptado (cota por diseño, < umbral ANR); race flush/close residual
+  acotado por el mismo fix; helpers de adapters sin cerrar = uso normal de
+  `SQLiteOpenHelper` (sin impacto, documentado); ventana transitoria de
+  `typeof undefined` entre swap de documento e inyección (~50 ms, auto-sanable,
+  no explotable porque la selección requiere documento asentado).
