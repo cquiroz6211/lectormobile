@@ -86,38 +86,6 @@
 
                     </LinearLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="@color/border"
-                        android:layout_marginStart="16dp"
-                        android:layout_marginEnd="16dp" />
-
-                    <!-- Reading Direction -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:padding="16dp">
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="@string/settings_reading_direction"
-                            android:textColor="@color/text_primary"
-                            android:textSize="16sp" />
-
-                        <Spinner
-                            android:id="@+id/settings_spinner_direction"
-                            android:layout_width="120dp"
-                            android:layout_height="48dp"
-                            android:background="@drawable/bg_spinner"
-                            android:popupBackground="@color/surface" />
-
-                    </LinearLayout>
-
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>

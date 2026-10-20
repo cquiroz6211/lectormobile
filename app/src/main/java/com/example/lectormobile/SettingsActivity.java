@@ -23,7 +23,6 @@ public class SettingsActivity extends AppCompatActivity {
 
     private SwitchMaterial darkModeSwitch;
     private Spinner fontSizeSpinner;
-    private Spinner directionSpinner;
     private TextView versionValue;
     private SharedPreferences prefs;
 
@@ -40,7 +39,6 @@ public class SettingsActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
@@ -51,7 +49,7 @@ public class SettingsActivity extends AppCompatActivity {
         darkModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             prefs.edit().putBoolean("dark_mode", isChecked).apply();
             Toast.makeText(this,
-                    isChecked ? "Modo oscuro activado" : "Modo claro activado",
+                    isChecked ? "Fondo oscuro activado" : "Fondo claro activado",
                     Toast.LENGTH_SHORT).show();
         });
 
@@ -83,29 +81,14 @@ public class SettingsActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        // Reading direction spinner
-        directionSpinner = findViewById(R.id.settings_spinner_direction);
-        ArrayAdapter<CharSequence> dirAdapter = ArrayAdapter.createFromResource(
-                this, R.array.reading_directions, android.R.layout.simple_spinner_dropdown_item);
-        dirAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        directionSpinner.setAdapter(dirAdapter);
-
-        int directionPos = prefs.getInt("direction", 0);
-        directionSpinner.setSelection(directionPos);
-
-        directionSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                prefs.edit().putInt("direction", position).apply();
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
-        // Version number
+        // Version number (from the installed package)
         versionValue = findViewById(R.id.settings_version_value);
-        versionValue.setText("1.0.0");
+        try {
+            versionValue.setText(getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName);
+        } catch (Exception e) {
+            versionValue.setText("");
+        }
     }
 
     @Override

@@ -4,38 +4,38 @@
     <string name="hello">Hello, Lector Mobile!</string>
 
     <!-- Bookmarks -->
-    <string name="bookmarks_title">Bookmarks</string>
-    <string name="bookmarks_no_items">No bookmarks yet</string>
+    <string name="bookmarks_title">Marcadores</string>
+    <string name="bookmarks_no_items">Aún no hay marcadores</string>
 
     <!-- Settings -->
-    <string name="settings_title">Settings</string>
-    <string name="settings_category_reading">Reading</string>
-    <string name="settings_font_size">Font Size</string>
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_category_reading">Lectura</string>
+    <string name="settings_font_size">Tamaño de fuente</string>
     <string name="settings_reading_direction">Reading Direction</string>
-    <string name="settings_category_appearance">Appearance</string>
-    <string name="settings_dark_mode">Dark Mode</string>
-    <string name="settings_category_about">About</string>
-    <string name="settings_label_version">Version</string>
+    <string name="settings_category_appearance">Apariencia</string>
+    <string name="settings_dark_mode">Fondo oscuro de lectura</string>
+    <string name="settings_category_about">Acerca de</string>
+    <string name="settings_label_version">Versión</string>
 
     <!-- Reader -->
-    <string name="reader_action_settings">Settings</string>
-    <string name="reader_action_bookmarks">Bookmarks</string>
+    <string name="reader_action_settings">Ajustes</string>
+    <string name="reader_action_bookmarks">Marcadores</string>
     <string name="reader_action_share">Share</string>
     <string name="reader_action_delete">Delete</string>
-    <string name="reader_error_opening">Error opening file</string>
-    <string name="reader_page">Page</string>
-    <string name="reader_of">of</string>
+    <string name="reader_error_opening">Error al abrir el archivo</string>
+    <string name="reader_page">Página</string>
+    <string name="reader_of">de</string>
 
     <!-- Main -->
-    <string name="main_action_add">Add Book</string>
-    <string name="main_action_settings">Settings</string>
-    <string name="main_no_books">No books yet. Tap + to add one.</string>
-    <string name="main_delete_confirm">Delete this book?</string>
+    <string name="main_action_add">Agregar libro</string>
+    <string name="main_action_settings">Ajustes</string>
+    <string name="main_no_books">Aún no hay libros. Toca + para agregar uno.</string>
+    <string name="main_delete_confirm">¿Eliminar este libro?</string>
 
     <!-- Bookmark messages -->
-    <string name="bookmark_added">Bookmark added</string>
-    <string name="bookmark_removed">Bookmark removed</string>
-    <string name="bookmark_exists">Bookmark already exists</string>
+    <string name="bookmark_added">Marcador agregado</string>
+    <string name="bookmark_removed">Marcador eliminado</string>
+    <string name="bookmark_exists">El marcador ya existe</string>
 
     <!-- Settings options -->
     <string name="direction_ltr">Left to Right</string>
@@ -51,28 +51,35 @@
     <string name="item_bookmark_delete_desc">Delete bookmark</string>
 
     <!-- Menu actions -->
-    <string name="action_delete">Delete</string>
-    <string name="action_show_bookmarks">Show Bookmarks</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_show_bookmarks">Mostrar marcadores</string>
     <string name="action_about">About</string>
-    <string name="action_bookmark_page">Bookmark This Page</string>
-    <string name="action_font_size">Font Size</string>
-    <string name="action_theme">Theme</string>
-    <string name="action_share">Share</string>
-    <string name="action_bookmark">Bookmark</string>
-    <string name="font_size">Font Size</string>
-    <string name="dark_mode">Dark Mode</string>
-    <string name="action_settings">Settings</string>
-    <string name="about">About</string>
-    <string name="app_version">Version</string>
-    <string name="delete_bookmark">Delete bookmark?</string>
-    <string name="delete_all_bookmarks">Delete all bookmarks?</string>
+    <string name="action_bookmark_page">Marcar esta página</string>
+    <string name="action_font_size">Tamaño de fuente</string>
+    <string name="action_theme">Tema</string>
+    <string name="action_share">Compartir</string>
+    <string name="action_bookmark">Marcador</string>
+    <string name="action_open">Abrir</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="delete_book_title">Eliminar libro</string>
+    <string name="delete_book_message">¿Eliminar este libro? También se borrarán sus marcadores y su progreso de lectura.</string>
+    <string name="book_deleted">Libro eliminado</string>
+
+    <string name="action_toc">Índice</string>
+    <string name="font_size">Tamaño de fuente</string>
+    <string name="dark_mode">Modo oscuro</string>
+    <string name="action_settings">Ajustes</string>
+    <string name="about">Acerca de</string>
+    <string name="app_version">Versión</string>
+    <string name="delete_bookmark">¿Eliminar el marcador?</string>
+    <string name="delete_all_bookmarks">¿Eliminar todos los marcadores?</string>
 
     <!-- Additional strings -->
-    <string name="action_previous">Previous</string>
-    <string name="action_next">Next</string>
-    <string name="action_menu">Menu</string>
-    <string name="action_font_size_down">Font Size -</string>
-    <string name="action_font_size_up">Font Size +</string>
+    <string name="action_previous">Anterior</string>
+    <string name="action_next">Siguiente</string>
+    <string name="action_menu">Menú</string>
+    <string name="action_font_size_down">Reducir texto</string>
+    <string name="action_font_size_up">Aumentar texto</string>
 
     <!-- Arrays -->
     <string-array name="font_sizes">
@@ -91,4 +98,7 @@
         <item>Left to Right</item>
         <item>Right to Left</item>
     </string-array>
+
+    <string name="page_number">Página %1$d</string>
+    <string name="chapter_number">Capítulo %1$d</string>
 </resources>

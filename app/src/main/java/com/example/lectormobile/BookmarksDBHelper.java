@@ -14,20 +14,23 @@ import android.database.sqlite.SQLiteOpenHelper;
  */
 public class BookmarksDBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "lectormobile.db";
-    private static final int DATABASE_VERSION = 2;
+    private static final int DATABASE_VERSION = 3;
     private static final String TABLE_BOOKMARKS = "bookmarks";
     private static final String TABLE_HISTORY = "reading_history";
+    private static final String TABLE_POSITIONS = "reading_positions";
 
     private static final String COLUMN_ID = "id";
     private static final String COLUMN_BOOK_PATH = "book_path";
     private static final String COLUMN_BOOKMARK_VALUE = "bookmark_value";
     private static final String COLUMN_TIMESTAMP = "timestamp";
     private static final String COLUMN_LABEL = "label";
+    private static final String COLUMN_POSITION = "position";
+    private static final String COLUMN_UPDATED_AT = "updated_at";
     private static final String COLUMN_LAST_READ = "last_read_at";
     private static final String COLUMN_TIMES_READ = "times_read";
 
     private static final String CREATE_TABLE_BOOKMARKS =
-        "CREATE TABLE " + TABLE_BOOKMARKS + " (" +
+        "CREATE TABLE IF NOT EXISTS " + TABLE_BOOKMARKS + " (" +
         COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
         COLUMN_BOOK_PATH + " TEXT NOT NULL, " +
         COLUMN_BOOKMARK_VALUE + " TEXT NOT NULL, " +
@@ -35,11 +38,18 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         COLUMN_LABEL + " TEXT)";
 
     private static final String CREATE_TABLE_HISTORY =
-        "CREATE TABLE " + TABLE_HISTORY + " (" +
+        "CREATE TABLE IF NOT EXISTS " + TABLE_HISTORY + " (" +
         COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
         COLUMN_BOOK_PATH + " TEXT UNIQUE NOT NULL, " +
         COLUMN_LAST_READ + " INTEGER NOT NULL, " +
         COLUMN_TIMES_READ + " INTEGER DEFAULT 1)";
+
+    private static final String CREATE_TABLE_POSITIONS =
+        "CREATE TABLE IF NOT EXISTS " + TABLE_POSITIONS + " (" +
+        COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+        COLUMN_BOOK_PATH + " TEXT UNIQUE NOT NULL, " +
+        COLUMN_POSITION + " TEXT NOT NULL, " +
+        COLUMN_UPDATED_AT + " INTEGER NOT NULL)";
 
     public BookmarksDBHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -49,13 +59,59 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(CREATE_TABLE_BOOKMARKS);
         db.execSQL(CREATE_TABLE_HISTORY);
+        db.execSQL(CREATE_TABLE_POSITIONS);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_BOOKMARKS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_HISTORY);
-        onCreate(db);
+        // Additive migrations: never drop user data.
+        db.execSQL(CREATE_TABLE_BOOKMARKS);
+        db.execSQL(CREATE_TABLE_HISTORY);
+        db.execSQL(CREATE_TABLE_POSITIONS);
+
+        // Older builds stored the reading position as a fake bookmark.
+        try {
+            db.execSQL("DELETE FROM " + TABLE_BOOKMARKS + " WHERE " + COLUMN_LABEL + " = 'position'");
+        } catch (Exception ignored) { }
+    }
+
+    // ─── Reading position ───
+
+    public void saveReadingPosition(String bookPath, String position) {
+        if (bookPath == null || position == null) return;
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_BOOK_PATH, bookPath);
+        values.put(COLUMN_POSITION, position);
+        values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+        db.insertWithOnConflict(TABLE_POSITIONS, null, values,
+                SQLiteDatabase.CONFLICT_REPLACE);
+        db.close();
+    }
+
+    public String getReadingPosition(String bookPath) {
+        if (bookPath == null) return null;
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery(
+            "SELECT " + COLUMN_POSITION + " FROM " + TABLE_POSITIONS +
+            " WHERE " + COLUMN_BOOK_PATH + " = ?",
+            new String[]{bookPath});
+        String position = null;
+        if (cursor.moveToFirst()) {
+            position = cursor.getString(0);
+        }
+        cursor.close();
+        db.close();
+        return position;
+    }
+
+    public int deleteReadingPosition(String bookPath) {
+        if (bookPath == null) return 0;
+        SQLiteDatabase db = this.getWritableDatabase();
+        int deleted = db.delete(TABLE_POSITIONS,
+                COLUMN_BOOK_PATH + " = ?", new String[]{bookPath});
+        db.close();
+        return deleted;
     }
 
     // ─── Bookmark Methods ───
@@ -74,6 +130,10 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
 
     public Cursor getBookmarks(String bookPath) {
         SQLiteDatabase db = this.getReadableDatabase();
+        if (bookPath == null) {
+            return db.rawQuery(
+                "SELECT * FROM " + TABLE_BOOKMARKS + " ORDER BY timestamp DESC", null);
+        }
         return db.rawQuery(
             "SELECT * FROM " + TABLE_BOOKMARKS +
             " WHERE " + COLUMN_BOOK_PATH + " = ? ORDER BY timestamp DESC",

@@ -1,24 +1,17 @@
 package com.example.lectormobile;
 
-import android.app.AlertDialog;
-import android.content.Context;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
-import android.widget.TextView;
+import androidx.appcompat.app.AlertDialog;
 
 import java.util.ArrayList;
 
 /**
- * Table of Contents popup for EPUB books.
- * Shows a list of chapters that the user can select to jump to.
+ * Table of contents dialog for EPUB books.
+ * Shows the chapter list and jumps to the selected one.
  */
 public class TOCDialog {
 
-    private ReaderActivity activity;
-    private ArrayList<TocEntry> tocEntries;
+    private final ReaderActivity activity;
+    private final ArrayList<TocEntry> tocEntries;
 
     TOCDialog(ReaderActivity activity, ArrayList<TocEntry> toc) {
         this.activity = activity;
@@ -27,44 +20,28 @@ public class TOCDialog {
     }
 
     public void show() {
-        final ArrayList<TocEntry> tocList = tocEntries;
+        if (tocEntries == null || tocEntries.isEmpty()) {
+            return;
+        }
 
-        AlertDialog.Builder builder = new AlertDialog.Builder(activity);
-        builder.setTitle("📚 Índice del libro");
-        builder.setMessage("Selecciona un capítulo para navegar");
+        CharSequence[] titles = new CharSequence[tocEntries.size()];
+        for (int i = 0; i < tocEntries.size(); i++) {
+            titles[i] = tocEntries.get(i).title;
+        }
 
-        // Create a simple list adapter
-        ArrayAdapter<TocEntry> adapter =
-                new ArrayAdapter<>(
-                        activity,
-                        android.R.layout.simple_list_item_1,
-                        tocList
-                ) {
-                    @Override
-                    public View getView(int position, View convertView, ViewGroup parent) {
-                        TextView textView = (TextView) super.getView(position, convertView, parent);
-                        textView.setTextColor(activity.getResources().getColor(R.color.text_primary));
-                        textView.setBackgroundColor(activity.getResources().getColor(R.color.surface));
-                        return textView;
+        new AlertDialog.Builder(activity)
+                .setTitle("Índice del libro")
+                .setItems(titles, (dialog, which) -> {
+                    if (which >= 0 && which < tocEntries.size()) {
+                        activity.navigateToTocEntry(tocEntries.get(which).href);
                     }
-                };
-
-        builder.setAdapter(adapter, new android.content.DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(android.content.DialogInterface dialog, int which) {
-                if (which >= 0 && which < tocList.size()) {
-                    TocEntry entry = tocList.get(which);
-                    activity.navigateToTocEntry(entry.title);
-                }
-            }
-        });
-
-        builder.setNegativeButton("Cancelar", null);
-        builder.show();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
     }
 
     /**
-     * Simple wrapper class to make TOC entries work with the ArrayAdapter.
+     * Simple wrapper class for TOC entries.
      */
     static class TocEntry {
         String title;

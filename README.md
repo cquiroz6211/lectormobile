@@ -10,7 +10,7 @@ A fast, minimal PDF and EPUB reader for Android with dark mode and bookmarks.
 - 🔖 **Bookmarks** — Save and manage bookmarks with SQLite persistence
 - 📄 **Progress Tracking** — Automatic reading position saving
 - 🔍 **Search** — Filter books by name
-- ⚡ **Lightweight** — 2.7MB APK, instant loading
+- ⚡ **Lightweight** — Fast local rendering, no accounts or network
 - 🔒 **Privacy** — No ads, no tracking, no internet needed
 
 ## Screenshots
@@ -30,16 +30,16 @@ A fast, minimal PDF and EPUB reader for Android with dark mode and bookmarks.
 
 | Build | Size |
 |-------|------|
-| Debug | 6.4 MB |
-| Release (minified) | 2.7 MB |
-| AAB (Play Store) | 2.1 MB |
+| Debug | ~16 MB |
+| Release universal (arm64-v8a + armeabi-v7a) | ~14 MB |
+| AAB (Play Store, split per ABI) | see `bundleRelease` output |
 
 ## Technical Details
 
 - **Min SDK**: 24 (Android 7.0 Nougat)
 - **Target SDK**: 34 (Android 14)
 - **Architecture**: arm64-v8a, armeabi-v7a
-- **PDF Rendering**: AndroidPdfViewer (PDFium-based) v2.0.2
+- **PDF Rendering**: AndroidPdfViewer 3.2.0-beta06 (PDFium 1.9.5-beta01)
 - **EPUB Parsing**: Custom parser with TOC support
 - **UI**: Material Design 3, Dark theme default
 - **Database**: SQLite for bookmarks and reading history
@@ -65,10 +65,10 @@ cd lectormobile
 
 ```bash
 # Verify APK signature
-apksigner verify --verbose app/build/outputs/apk/release/LectorMobile-1.0.0.apk
+apksigner verify --verbose LectorMobile-1.0.1.apk
 
-# Check APK contents
-unzip -l app/build/outputs/apk/release/LectorMobile-1.0.0.apk | grep -E "\.class$|\.so$"
+# Check native libraries
+unzip -l LectorMobile-1.0.1.apk | grep "\.so$"
 ```
 
 ## Publishing to Google Play
@@ -87,7 +87,8 @@ unzip -l app/build/outputs/apk/release/LectorMobile-1.0.0.apk | grep -E "\.class
 
 | Library | Version | Source |
 |---------|---------|--------|
-| AndroidPdfViewer | 2.0.2 | JitPack (verified with Context7) |
+| android-pdf-viewer (oothp) | 3.2.0-beta06 | Maven Central |
+| pdfium-android (oothp) | 1.9.5-beta01 | Maven Central |
 | appcompat | 1.6.1 | Maven Central |
 | material | 1.12.0 | Maven Central |
 | recyclerview | 1.3.2 | Maven Central |

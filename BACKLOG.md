@@ -1,224 +1,120 @@
-# LectorMobile - Product Backlog
+# LectorMobile — Backlog y estado del proyecto
 
-## 📋 Proyecto
-Lector de PDF y EPUB para Android con modo oscuro y bookmarks. Producto listo para Play Store.
+## Estado actual (2025-10-20)
 
-## 🎯 Estado Actual
-**✅ APK firmado e instalable** (2025-10-20 07:54 UTC)
+**Versión 1.0.1 (versionCode 2)** — APK release firmado, zipaligned e instalado y
+probado en un emulador ARM64 con Android 16 (API 37).
 
-### Fix: APK signing (Critical)
-- **Problema**: APK anterior firmado con `jarsigner` → solo v1 signature → Android no lo instala (requiere v2+ para targetSdk 34)
-- **Solución**: Usar `apksigner` con v2+v3 schemes + zipalign antes de firmar
-- **Comando**: `apksigner sign --ks lectormobile.keystore --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true LectorMobile-aligned.apk`
-- **Resultado**: Verified v2=true, v3=true, verification successful
-- **APK final**: LectorMobile-1.0.0.apk (2.7MB, firmado, zipaligned, instalable)
+### Verificado en ejecución
 
-## 📚 Librerías y Versiones Documentadas
+| Área | Estado | Evidencia |
+|------|--------|-----------|
+| Instalación del APK | ✅ | `adb install -r` → Success, firma v2+v3 |
+| Arranque de la app | ✅ | MainActivity abre sin crash |
+| PDF: abrir y renderizar | ✅ | `lector_test.pdf` (3 páginas) renderizado con pdfium 1.9.5 |
+| PDF: navegación | ✅ | Seekbar salta a página 3, contador «Página 3 / 3» |
+| PDF: posición persistente | ✅ | Al reabrir vuelve a la página 3 |
+| EPUB: abrir y renderizar | ✅ | `lector_test.epub` (3 capítulos) en modo oscuro |
+| EPUB: orden de lectura | ✅ | Spine del OPF, rutas absolutas |
+| EPUB: índice (TOC) | ✅ | Diálogo con títulos de `nav.xhtml`, navegación por `href` |
+| EPUB: navegación | ✅ | Seekbar capítulo 2/3 y título desde el TOC |
+| EPUB: posición persistente | ✅ | Al reabrir vuelve al capítulo 2 |
+| EPUB: tamaño de fuente | ✅ | Ajuste 18sp → 24sp aplicado y persistido |
+| Importar libros (SAF) | ✅ | Selector acepta PDF y EPUB (`OpenDocument`, varios MIME) |
+| Biblioteca persistente | ✅ | Copias en `filesDir/books`, sobreviven reinicios |
+| Abrir con / compartir | ✅ | `ACTION_VIEW` con `content://` importa y abre el libro |
+| Marcadores | ✅ | Alta/baja, lista con página/capítulo, salto al punto, estado vacío |
+| Ajustes | ✅ | Tema oscuro, fondo de lectura, tamaño de fuente, versión real |
+| Menú principal | ✅ | Buscar, ajustes y marcadores abren sus pantallas |
+| Borrar libro | ✅ | Confirmación, borra copia interna, marcadores, posición e historial |
 
-### ✅ Verificadas con Context7 y JitPack (2025-10-19)
-| Librería | Versión | Uso | Fuente | Estado |
-|----------|---------|-----|--------|--------|
-| `com.github.barteksc:AndroidPdfViewer` | 2.0.2 | PDF viewer | JitPack + Context7 | ✅ FUNCIONANDO |
-| `androidx.appcompat:appcompat` | 1.6.1 | UI base | Standard | ✅ |
-| `com.google.android.material:material` | 1.12.0 | Material Design | Standard | ✅ |
-| `androidx.constraintlayout:constraintlayout` | 2.1.4 | Layout | Standard | ✅ |
-| `androidx.recyclerview:recyclerview` | 1.3.2 | Book list | Standard | ✅ |
-| `androidx.swiperefreshlayout:swiperefreshlayout` | 1.1.0 | Pull to refresh | Standard | ✅ |
-| `androidx.preference:preference` | 1.2.1 | Settings | Standard | ✅ |
+## Arquitectura
 
-### ⚠️ Pendientes de Verificar
-| Librería | Versión | Uso | Estado |
-|----------|---------|-----|--------|
-| EPUB parser | Custom | EPUB reading | ✅ Funcional |
-| SQLite | Native | Bookmarks | ✅ Funcional |
+```
+app/src/main/java/com/example/lectormobile/
+├── MainActivity.java          Biblioteca, búsqueda, importación SAF, intents VIEW/SEND
+├── ReaderActivity.java        Lector PDF/EPUB, progreso, posición, marcadores
+├── EPUBParser.java            Parser EPUB v3: container.xml, OPF, spine, nav.xhtml, toc.ncx
+├── TOCDialog.java             Diálogo del índice EPUB
+├── BookmarksActivity.java     Lista de marcadores de todos los libros
+├── BookmarksAdapter.java      Adaptador de marcadores
+├── BookmarksDBHelper.java     SQLite v3: bookmarks, reading_history, reading_positions
+├── SettingsActivity.java      Ajustes (tema, tamaño de fuente, versión)
+├── BooksAdapter.java          Lista de libros
+└── UriFileCopier.java         Copia content:// → filesDir/books (nombres únicos)
 
-## 📱 Funcionalidades - Estado Completo
+app/src/main/res/
+├── layout/                    activity_main, activity_reader, activity_settings,
+│                              activity_bookmarks, item_book, item_bookmark
+├── menu/                      main_menu, reader_menu
+├── values/                    strings (español), colors, themes, styles
+└── values-night/              tema oscuro (la app es oscura en ambos modos)
+```
 
-### PDF Reader (v2.0.2 API) - ✅ COMPLETO
-- [x] PDFView setup en XML
-- [x] fromFile() + .load() builder pattern
-- [x] Swipe horizontal para páginas
-- [x] Double tap para zoom
-- [x] setOnPageChangeListener (v2 API)
-- [x] Progress tracking
-- [x] Dark mode background
-- [x] Page counter
-- [x] onAttach/ onDetached lifecycle
+### Base de datos (versión 3)
 
-### EPUB Reader - ✅ COMPLETO
-- [x] Extraer ZIP del EPUB (EPUBParser.unzip)
-- [x] Parsear container.xml (EPUBParser.findContentDir)
-- [x] Parsear content.opf
-- [x] Parsear nav.xhtml (EPUB3) / toc.ncx (EPUB2)
-- [x] Listar capítulos (EPUBParser.getChapterFiles)
-- [x] Navegación por capítulos
-- [x] CSS inyectado (dark mode)
-- [x] WebView setup
-- [x] Font size control
-- [x] Chapter title display
+- `bookmarks(id, book_path, bookmark_value, timestamp, label)`
+- `reading_history(id, book_path, last_read_at, times_read)`
+- `reading_positions(id, book_path UNIQUE, position, updated_at)`
 
-### Bookmarks - ✅ COMPLETO
-- [x] SQLite table structure (BookmarksDBHelper)
-- [x] Insert bookmark
-- [x] Get bookmarks by book
-- [x] Delete bookmark
-- [x] Show in list (BookmarksActivity)
-- [x] Auto-save position
-- [x] Reading history tracking
+Las posiciones se guardan como `page:N` (PDF, base 0) o `chapter:N` (EPUB).
+Las migraciones son aditivas: nunca se borran datos del usuario.
 
-### UI/UX - ✅ COMPLETO
-- [x] Main activity (lista de libros)
-- [x] Book search/filter
-- [x] Add book button
-- [x] Book info (size, type, read count)
-- [x] Bookmarks indicator
-- [x] Reader toolbar
-- [x] Progress bar (bottom)
-- [x] Chapter navigation (seekbar)
-- [x] Font size buttons
-- [x] Dark/light toggle
-- [x] Bookmarks menu
-- [x] Settings screen (Spinner, Switch)
-- [x] About screen (version)
-- [x] TOC Dialog for EPUB
+## Librerías
 
-### Build & Distribution - ✅ COMPLETO
-- [x] Gradle wrapper setup
-- [x] build.gradle (project)
-- [x] build.gradle (app) - AGP 8.2.2 compatible
-- [x] Debug build (APK 6.4MB)
-- [x] NDK abiFilters (armeabi-v7a, arm64-v8a)
-- [x] Release build config (minifyEnabled, shrinkResources)
+| Librería | Versión | Uso |
+|----------|---------|-----|
+| `io.github.oothp:android-pdf-viewer` | 3.2.0-beta06 | Visor PDF (fork mantenido de barteksc, mismo paquete) |
+| `io.github.oothp:pdfium-android` | 1.9.5-beta01 | Motor PDFium; segmentos LOAD alineados a 16 KB |
+| `androidx.appcompat:appcompat` | 1.6.1 | UI base |
+| `com.google.android.material:material` | 1.12.0 | Material 3 |
+| `androidx.constraintlayout:constraintlayout` | 2.1.4 | Layouts |
+| `androidx.recyclerview:recyclerview` | 1.3.2 | Listas |
+| `androidx.preference:preference` | 1.2.1 | Preferencias |
+| `androidx.activity:activity` (transitiva) | — | `ActivityResultContracts` |
 
-### Testing
-- [x] APK compila exitosamente
-- [ ] Emulator setup (sin imágenes x86_64 disponibles)
-- [ ] PDF test file
-- [ ] EPUB test file
-- [ ] Testing manual pendiente
+> La dependencia transitiva `androidx.core:core:1.16.0` se excluye del visor PDF
+> para no forzar compileSdk 35/AGP 8.6; el visor solo usa APIs básicas y funciona
+> con la versión de core que ya aporta AppCompat.
 
-## 📁 Estructura de Archivos - Completos
+## Compilación y firma
 
-### Java Files (9 archivos, ~2,300 líneas)
-- [x] `MainActivity.java` - Lista de libros, búsqueda, historial
-- [x] `ReaderActivity.java` - Lector PDF/EPUB, bookmarks, TOC
-- [x] `BookmarksDBHelper.java` - SQLite (bookmarks + history)
-- [x] `BooksAdapter.java` - RecyclerView adapter
-- [x] `BookmarksActivity.java` - Lista de bookmarks
-- [x] `BookmarksAdapter.java` - Bookmarks list adapter
-- [x] `EPUBParser.java` - Parser EPUB 2/3 con TOC
-- [x] `UriFileCopier.java` - Helper para archivos
-- [x] `SettingsActivity.java` - Configuración (font, theme)
-- [x] `RecentBooksAdapter.java` - Recientes (horizontal)
-- [x] `TOCDialog.java` - Table of Contents popup
-- [x] `ReaderMenu.java` - Popup menu reader
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+export ANDROID_HOME="/Users/usuario/Library/Android/sdk"
 
-### Layout XML Files (6 archivos)
-- [x] `activity_main.xml` - Main screen (Toolbar + Search + RecyclerView + FAB)
-- [x] `activity_reader.xml` - Reader screen (Toolbar + PDF/WebView + Progress)
-- [x] `activity_bookmarks.xml` - Bookmarks list
-- [x] `activity_settings.xml` - Settings (Cards, Spinners, Switch)
-- [x] `item_book.xml` - Book item layout
-- [x] `item_bookmark.xml` - Bookmark item layout
-- [x] `item_recent_book.xml` - Recent book item (horizontal)
+./gradlew assembleRelease
 
-### Drawables (10+ vector XMLs)
-- [x] `ic_book.xml` - Book icon
-- [x] `ic_bookmark.xml` - Filled bookmark
-- [x] `ic_bookmark_border.xml` - Unfilled bookmark
-- [x] `ic_add.xml` - Add button
-- [x] `ic_back.xml` - Back arrow
-- [x] `ic_search.xml` - Search icon
-- [x] `ic_settings.xml` - Settings
-- [x] `ic_delete.xml` - Delete
-- [x] `ic_page.xml` - Page/info
-- [x] `ic_share.xml` - Share
-- [x] `ic_arrow_back.xml` - Arrow back
-- [x] `ic_pdf.xml` - PDF icon
+$ANDROID_HOME/build-tools/36.0.0/zipalign -f 4 \
+  app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
 
-### Values (6 archivos XML)
-- [x] `strings.xml` - 50+ strings + arrays (font_sizes, reading_directions)
-- [x] `colors.xml` - Dark theme palette
-- [x] `themes.xml` - App themes (Material 3)
-- [x] `styles.xml` - Custom styles
-- [x] `arrays.xml` - Preference arrays
-- [x] `dimens.xml` - Dimensions
+$ANDROID_HOME/build-tools/36.0.0/apksigner sign \
+  --ks lectormobile.keystore --ks-key-alias lectormobile \
+  --ks-pass pass:android --key-pass pass:android \
+  --v2-signing-enabled true --v3-signing-enabled true aligned.apk
+```
 
-## 📈 Estadísticas del Proyecto
-| Métrica | Valor |
-|---------|-------|
-| Java files | 12 |
-| Java lines | ~2,300 |
-| XML layouts | 7 |
-| XML values | 6 |
-| Drawables | 12+ |
-| Resources total | 48+ |
-| APK size (debug) | 6.4 MB |
-| APK size (release) | ~2.6 MB (est.) |
-| Native libs | 2 (arm64-v8a, armeabi-v7a) |
-| Icons | 10 (5 densities x 2 types) |
+## Pendientes antes de publicar en Play Store
 
-## 🐛 Bugs Conocidos - Resueltos
-### Bug #1: APK compilation errors - ✅ RESUELTO (2025-10-19)
-- **Descripción**: Múltiples errores de compilación por:
-  - Imports faltantes en Java files
-  - Resource IDs no matching
-  - String resources missing
-  - Method visibility issues (private vs public)
-  - Type mismatches (List vs ArrayList)
-  - Missing methods in classes
-  - Wrong library version/artifact ID
-  - V2 vs V3 API confusion (PDF viewer)
-- **Causa raíz**: 
-  - EPUBParser.java falta `package` declaration y imports
-  - BooksAdapter.java usa `MainActivity.BookItem` pero BookItem no es static
-  - BookmarksDBHelper.java necesita imports
-  - ReaderActivity.java methods: toggleDarkMode() es private pero se llama desde otra clase
-  - Resources.xml files referencing non-existent string IDs
-  - Wrong JitPack artifact ID: `android-pdf-viewer` vs `AndroidPdfViewer`
-  - Wrong library version: v3.2.0-beta.1 no disponible, usar v2.0.2
-  - V2 API uses `setOnPageChangeListener()` not `onPageChange()`
-  - V2 API doesn't have `pdfView.onPause()/onResume()`
-- **Solución aplicada**:
-  - ✅ Agregar `package com.example.lectormobile;` y todos los imports a cada .java
-  - ✅ Hacer BookItem static en MainActivity
-  - ✅ Hacer toggleDarkMode() y changeFontSize() public en ReaderActivity
-  - ✅ Crear todas las string resources referenciadas
-  - ✅ Agregar arrays: font_sizes, reading_directions
-  - ✅ Corregir library a `com.github.barteksc:AndroidPdfViewer:2.0.2` (JitPack verified)
-  - ✅ Usar API v2: `setOnPageChangeListener(OnPageChangeListener)`
-  - ✅ Quitar llamadas a `pdfView.onPause()/onResume()` (no existen en v2)
-  - ✅ Verificar todos los XML IDs coinciden con findViewById()
-  - ✅ Build exitoso: APK 6.4MB compilado ✅
+- [ ] Actualizar a `targetSdk 35/36` y AGP 8.6+ (requisito de Play para 2025).
+  Requiere `compileSdk 35+`; hoy el proyecto compila con AGP 8.2.2 / compileSdk 34.
+- [ ] Revisar el aviso de 16 KB en dispositivos con páginas de 16 KB. En el
+  emulador API 37 aparece «RELRO segment not aligned» para `libjniPdfium.so` y
+  `libmodpdfium.so` aun con pdfium 1.9.5 (LOAD a 0x4000). No afecta a teléfonos
+  con páginas de 4 KB; hay que validarlo con un build NDK actualizado o un
+  dispositivo 16 KB antes de apuntar a targetSdk 35+.
+- [ ] Subir AAB y activar Play App Signing.
+- [ ] Icono adaptativo (hoy hay PNGs de launcher), capturas y ficha de Play.
+- [ ] QA final en dispositivo físico (instalación, PDF y EPUB reales).
+- [ ] (Opcional) Escaneo de almacenamiento compartido: en Android 13+ el acceso
+  directo está limitado; la vía soportada es importar con el selector SAF.
 
-## 📊 Progreso por Categoría
-| Categoría | Progreso |
-|-----------|----------|
-| PDF Reader | 100% ✅ |
-| EPUB Reader | 100% ✅ |
-| Bookmarks | 100% ✅ |
-| UI/UX | 100% ✅ |
-| Settings | 100% ✅ |
-| Build System | 100% ✅ |
-| APK Generation | 100% ✅ |
-| Release/APK Sign | 90% ⏳ |
-| AAB/Play Store | 80% ⏳ |
-| Emulator Testing | 0% ❌ |
-| Unit Tests | 0% ❌ |
+## Limitaciones conocidas
 
-## 🎯 Próximos Pasos (Prioridad)
-1. [ ] Crear release APK firmado
-2. [ ] Generar AAB para Play Store
-3. [ ] Crear Play Store assets (screenshots, iconos HD, descripción)
-4. [ ] Configurar emulator con imagen x86_64
-5. [ ] Testing manual en emulator
-6. [ ] Optimizar APK size (minify, shrink)
-7. [ ] Agregar ProGuard rules para release
-8. [ ] Documentar en README.md
-
-## 📈 Tasa de Trabajo
-- **Inicio**: 2025-10-19 22:30 UTC
-- **Estado actual**: 2025-10-19 23:35 UTC
-- **Tiempo transcurrido**: ~1 hora
-- **Tarea completada**: APK compilado, build system configurado
-- **Objetivo final**: APK listo para Play Store (release signed + AAB)
+- El visor PDF no invierte los colores del documento: el fondo de la página sigue
+  siendo blanco. El modo oscuro aplica al entorno de la app.
+- Los EPUB se extraen a `cacheDir` en cada apertura (se limpian al cerrar; no
+  persisten). Para libros muy grandes conviene moverlos a `filesDir`.
+- No hay soporte de DRM (Adobe/Readium) ni de EPUB con fuentes cifradas.
+- El escaneo de almacenamiento compartido es «best effort» y solo funciona en
+  versiones con permiso de lectura concedido.

@@ -90,47 +90,6 @@
         android:paddingHorizontal="16dp"
         android:paddingVertical="8dp">
 
-        <!-- Chapter Navigation -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center">
-
-            <ImageButton
-                android:id="@+id/btnPrevChapter"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/ic_back"
-                android:contentDescription="@string/action_previous"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:visibility="gone" />
-
-            <Space android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
-
-            <!-- Chapter Progress -->
-            <TextView
-                android:id="@+id/chapterProgress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:text="1 / 10" />
-
-            <Space android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" />
-
-            <ImageButton
-                android:id="@+id/btnNextChapter"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/ic_back"
-                android:contentDescription="@string/action_next"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:rotation="180"
-                android:visibility="gone" />
-
-        </LinearLayout>
-
         <!-- Progress SeekBar -->
         <SeekBar
             android:id="@+id/progressSeek"
@@ -150,16 +109,5 @@
             android:textSize="12sp" />
 
     </LinearLayout>
-
-    <!-- Floating Menu Button -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fabMenu"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:src="@drawable/ic_settings"
-        android:contentDescription="@string/action_menu"
-        app:tint="@color/on_primary" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Dark theme – Material 3 Light (same theme, dark colors for system dark mode) -->
-    <style name="Theme.LectorMobile" parent="Theme.Material3.Light.NoActionBar">
+    <!-- La app es oscura por defecto, incluso si el sistema está en modo claro -->
+    <style name="Theme.LectorMobile" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_variant</item>
         <item name="colorOnPrimary">@color/white</item>

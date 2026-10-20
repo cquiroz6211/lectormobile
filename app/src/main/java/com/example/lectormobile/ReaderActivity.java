@@ -53,6 +53,9 @@ public class ReaderActivity extends AppCompatActivity {
     private ArrayList<String> epubChapters;
     private int currentChapterIndex = 0;
     private File epubExtractDir;
+    private File epubContentDir;
+    private String initialPosition;
+    private List<EPUBParser.TocEntry> tocEntries;
 
     // PDF state
     private int currentPage = 0;
@@ -88,15 +91,13 @@ public class ReaderActivity extends AppCompatActivity {
         dbHelper = new BookmarksDBHelper(this);
 
         // Restore settings
-        isDarkMode = prefs.getBoolean("dark_mode", false);
-        try {
-            fontSize = Integer.parseInt(prefs.getString("font_size", "18"));
-        } catch (NumberFormatException e) {
-            fontSize = 18;
-        }
+        isDarkMode = prefs.getBoolean("dark_mode", true);
+        fontSize = prefs.getInt("font_size", 18);
+        if (fontSize < 12 || fontSize > 28) fontSize = 18;
 
         // Get book path from intent
         bookPath = getIntent().getStringExtra("bookPath");
+        initialPosition = getIntent().getStringExtra("position");
         Uri dataUri = getIntent().getData();
 
         if (bookPath != null) {
@@ -136,9 +137,41 @@ public class ReaderActivity extends AppCompatActivity {
     private void setupPDF() {
         pdfView.setVisibility(View.VISIBLE);
 
+        // Restore the last read page ("page:N"), or the bookmark position
+        int startPage = 0;
+        String saved = initialPosition != null ? initialPosition : dbHelper.getReadingPosition(bookPath);
+        if (saved != null && saved.startsWith("page:")) {
+            try {
+                startPage = Math.max(0, Integer.parseInt(saved.substring(5)));
+            } catch (NumberFormatException ignored) { }
+        }
+        currentPage = startPage;
+
+        String title = bookFile.getName();
+        if (title.toLowerCase().endsWith(".pdf")) {
+            title = title.substring(0, title.length() - 4);
+        }
+        chapterTitleTextView.setText(title);
+
+        // Seekbar navigates PDF pages
+        progressSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (fromUser && progress != currentPage) {
+                    pdfView.jumpTo(progress, true);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
         // PDF viewer setup with v2.0.2 API
         pdfView.fromFile(bookFile)
-                .defaultPage(0)
+                .defaultPage(startPage)
                 .enableSwipe(true)
                 .swipeHorizontal(false)
                 .enableDoubletap(true)
@@ -147,8 +180,11 @@ public class ReaderActivity extends AppCompatActivity {
                     public void onPageChanged(int page, int pageCount) {
                         currentPage = page;
                         pdfPagesForProgress = pageCount;
+                        totalPages = pageCount;
+                        progressSeek.setMax(Math.max(0, pageCount - 1));
+                        progressSeek.setProgress(page);
                         updateProgress();
-                        saveReadingPosition("page:" + page);
+                        invalidateOptionsMenu();
                     }
                 })
                 .load();
@@ -168,6 +204,15 @@ public class ReaderActivity extends AppCompatActivity {
         // Extract EPUB in background thread
         new Thread(() -> {
             try {
+                // Remove extractions left over from previous sessions
+                File[] oldDirs = getCacheDir().listFiles(
+                        (dir, name) -> name.startsWith("epub_"));
+                if (oldDirs != null) {
+                    for (File old : oldDirs) {
+                        deleteRecursive(old);
+                    }
+                }
+
                 epubExtractDir = new File(getCacheDir(), "epub_" + System.currentTimeMillis());
                 if (epubExtractDir.exists()) {
                     deleteRecursive(epubExtractDir);
@@ -176,18 +221,25 @@ public class ReaderActivity extends AppCompatActivity {
 
                 EPUBParser.unzip(bookFile, epubExtractDir);
 
-                // Find content.opf location
+                // Directory that contains the OPF (e.g. "OEBPS"), used as base
+                // for resolving relative links and images.
                 String contentDirPath = EPUBParser.findContentDir(epubExtractDir);
+                if (contentDirPath != null && !contentDirPath.isEmpty()) {
+                    epubContentDir = new File(epubExtractDir, contentDirPath);
+                } else {
+                    epubContentDir = epubExtractDir;
+                }
 
                 // Get spine (reading order)
-                epubChapters = EPUBParser.getChapterFiles(
-                        contentDirPath != null ? new File(epubExtractDir, contentDirPath) : epubExtractDir,
-                        contentDirPath);
+                epubChapters = EPUBParser.getChapterFiles(epubExtractDir, contentDirPath);
 
                 if (epubChapters == null || epubChapters.isEmpty()) {
                     // Fallback: find all HTML files
                     epubChapters = findAllHTMLFiles(epubExtractDir);
                 }
+
+                // Table of contents (used for chapter titles and navigation)
+                tocEntries = EPUBParser.extractTOC(epubExtractDir, contentDirPath);
 
                 runOnUiThread(() -> {
                     if (epubChapters == null || epubChapters.isEmpty()) {
@@ -198,11 +250,23 @@ public class ReaderActivity extends AppCompatActivity {
                         return;
                     }
                     currentChapterIndex = 0;
-                    updateChapterTitle(0);
-                    renderChapter(0);
+                    String saved = initialPosition != null
+                            ? initialPosition
+                            : dbHelper.getReadingPosition(bookPath);
+                    if (saved != null && saved.startsWith("chapter:")) {
+                        try {
+                            int chapter = Integer.parseInt(saved.substring(8));
+                            if (chapter >= 0 && chapter < epubChapters.size()) {
+                                currentChapterIndex = chapter;
+                            }
+                        } catch (NumberFormatException ignored) { }
+                    }
+
+                    updateChapterTitle(currentChapterIndex);
+                    renderChapter(currentChapterIndex);
 
                     progressSeek.setMax(epubChapters.size() - 1);
-                    progressSeek.setProgress(0);
+                    progressSeek.setProgress(currentChapterIndex);
                     progressSeek.setOnSeekBarChangeListener(
                             new SeekBar.OnSeekBarChangeListener() {
                                 @Override
@@ -262,7 +326,13 @@ public class ReaderActivity extends AppCompatActivity {
         // Clean up HTML content
         content = cleanHTMLContent(content);
 
+        // Base URL must be the chapter's own directory so relative images
+        // and internal links resolve correctly inside the WebView.
+        File chapterFile = new File(chapterPath);
+        String baseUrl = "file://" + chapterFile.getParentFile().getAbsolutePath() + "/";
+
         final String finalContent = content;
+        final String finalBaseUrl = baseUrl;
         runOnUiThread(() -> {
             String css = getCSS();
             String fullHTML = "<html><head>"
@@ -270,7 +340,7 @@ public class ReaderActivity extends AppCompatActivity {
                     + "initial-scale=1.0'>" + css + "</head>"
                     + "<body>" + finalContent + "</body></html>";
 
-            webView.loadDataWithBaseURL("file://" + epubExtractDir.getAbsolutePath(),
+            webView.loadDataWithBaseURL(finalBaseUrl,
                     fullHTML, "text/html", "UTF-8", null);
 
             // Scroll to top
@@ -301,17 +371,28 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Clean up HTML content from EPUB.
+     * Clean up HTML content from EPUB before injecting it into the WebView.
      */
     private String cleanHTMLContent(String content) {
-        // Remove unnecessary elements
-        content = content.replaceAll("<[^>]*xmlns:[^>]*>", "");
-        content = content.replaceAll("<[^>]*style=[^>]*>", "");
-        // Replace relative image paths
-        if (epubExtractDir != null) {
-            content = content.replaceAll("src=\"([^/\\.\\?#]*)",
-                    "src=\"" + epubExtractDir.getAbsolutePath() + "/$1");
+        // Keep only the body content (we provide our own html/head wrapper)
+        java.util.regex.Matcher body = java.util.regex.Pattern.compile(
+                "<body[^>]*>(.*)</body>",
+                java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL)
+                .matcher(content);
+        if (body.find()) {
+            content = body.group(1);
         }
+
+        // Remove scripts, stylesheets and inline <style> blocks: they would
+        // override the reader theme (dark mode).
+        content = content.replaceAll("(?is)<script\\b[^>]*>.*?</script>", "");
+        content = content.replaceAll("(?is)<style\\b[^>]*>.*?</style>", "");
+        content = content.replaceAll("(?i)<link\\b[^>]*>", "");
+
+        // Drop inline style attributes but keep the tags themselves.
+        content = content.replaceAll("(?i)\\sstyle\\s*=\\s*\"[^\"]*\"", "");
+        content = content.replaceAll("(?i)\\sstyle\\s*=\\s*'[^']*'", "");
+
         return content;
     }
 
@@ -389,7 +470,10 @@ public class ReaderActivity extends AppCompatActivity {
     public void changeFontSize(int delta) {
         fontSize = Math.max(12, Math.min(28, fontSize + delta));
         applyFontSize();
-        prefs.edit().putString("font_size", String.valueOf(fontSize)).apply();
+        prefs.edit().putInt("font_size", fontSize).apply();
+        if (!isPdf) {
+            renderChapter(currentChapterIndex);
+        }
     }
 
     /**
@@ -411,7 +495,7 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void saveReadingPosition(String position) {
         if (bookPath != null) {
-            dbHelper.insertBookmark(bookPath, position, "position");
+            dbHelper.saveReadingPosition(bookPath, position);
         }
     }
 
@@ -419,35 +503,37 @@ public class ReaderActivity extends AppCompatActivity {
      * Get the current reading position.
      */
     private String getReadingPosition() {
-        if (bookPath != null) {
-            Cursor cursor = dbHelper.getBookmark(bookPath, "position");
-            if (cursor != null && cursor.moveToFirst()) {
-                int idx = cursor.getColumnIndex("bookmark_value");
-                if (idx >= 0) {
-                    String pos = cursor.getString(idx);
-                    cursor.close();
-                    return pos;
-                }
-                cursor.close();
-            }
-        }
-        return null;
+        return bookPath != null ? dbHelper.getReadingPosition(bookPath) : null;
+    }
+
+    private String currentPositionValue() {
+        return isPdf ? "page:" + currentPage : "chapter:" + currentChapterIndex;
     }
 
     /**
-     * Add a bookmark at the current position.
+     * Add or remove a bookmark at the current position.
      */
     private void addBookmark() {
-        String position;
-        if (isPdf) {
-            position = "page:" + currentPage;
-        } else {
-            position = "chapter:" + currentChapterIndex;
-        }
+        String position = currentPositionValue();
 
-        dbHelper.insertBookmark(bookPath, position, "bookmark");
-        Toast.makeText(this, getString(R.string.bookmark_added),
-                Toast.LENGTH_SHORT).show();
+        if (dbHelper.hasBookmark(bookPath, position)) {
+            Cursor cursor = dbHelper.getBookmark(bookPath, position);
+            if (cursor != null) {
+                if (cursor.moveToFirst()) {
+                    int idIndex = cursor.getColumnIndex("id");
+                    if (idIndex >= 0) {
+                        dbHelper.deleteBookmark(cursor.getInt(idIndex));
+                    }
+                }
+                cursor.close();
+            }
+            Toast.makeText(this, R.string.bookmark_removed,
+                    Toast.LENGTH_SHORT).show();
+        } else {
+            dbHelper.insertBookmark(bookPath, position, "bookmark");
+            Toast.makeText(this, R.string.bookmark_added,
+                    Toast.LENGTH_SHORT).show();
+        }
 
         invalidateOptionsMenu();
     }
@@ -456,12 +542,27 @@ public class ReaderActivity extends AppCompatActivity {
      * Get the name of the current chapter (used for bookmark labels).
      */
     private String getChapterName() {
-        if (currentChapterIndex >= 0 && currentChapterIndex < epubChapters.size()) {
+        if (epubChapters != null && currentChapterIndex >= 0
+                && currentChapterIndex < epubChapters.size()) {
             String chapterPath = epubChapters.get(currentChapterIndex);
             if (chapterPath != null) {
-                int lastSlash = chapterPath.lastIndexOf('/');
-                if (lastSlash >= 0) {
-                    return chapterPath.substring(lastSlash + 1);
+                String fileName = new File(chapterPath).getName();
+
+                // Prefer the title from the table of contents
+                if (tocEntries != null) {
+                    for (EPUBParser.TocEntry entry : tocEntries) {
+                        if (entry.href != null && entry.title != null &&
+                                new File(entry.href.split("#")[0]).getName().equals(fileName)) {
+                            return entry.title;
+                        }
+                    }
+                }
+
+                int dot = fileName.lastIndexOf('.');
+                if (dot > 0) fileName = fileName.substring(0, dot);
+                fileName = fileName.replace('_', ' ').replace('-', ' ').trim();
+                if (!fileName.isEmpty()) {
+                    return fileName.substring(0, 1).toUpperCase() + fileName.substring(1);
                 }
             }
         }
@@ -511,11 +612,9 @@ public class ReaderActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (!isPdf && webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        // Chapters are loaded as independent documents; leaving the reader
+        // always exits instead of navigating stale WebView history.
+        super.onBackPressed();
     }
 
     @Override
@@ -529,7 +628,8 @@ public class ReaderActivity extends AppCompatActivity {
         super.onPrepareOptionsMenu(menu);
         MenuItem bookmarkItem = menu.findItem(R.id.menuBookmark);
         if (bookmarkItem != null) {
-            boolean hasBookmark = getReadingPosition() != null;
+            boolean hasBookmark = bookPath != null &&
+                    dbHelper.hasBookmark(bookPath, currentPositionValue());
             bookmarkItem.setIcon(hasBookmark ?
                     R.drawable.ic_bookmark : R.drawable.ic_bookmark_border);
         }
@@ -544,6 +644,9 @@ public class ReaderActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.menuBookmark) {
             addBookmark();
+            return true;
+        } else if (id == R.id.menuToc) {
+            showTOC();
             return true;
         } else if (id == R.id.menuFontSizeUp) {
             increaseFontSize();
@@ -583,6 +686,25 @@ public class ReaderActivity extends AppCompatActivity {
         // PDF v2.0.2 doesn't have onResume()
     }
 
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            webView.loadUrl("about:blank");
+            webView.clearHistory();
+            webView.removeAllViews();
+            webView.destroy();
+            webView = null;
+        }
+        if (pdfView != null) {
+            pdfView.recycle();
+            pdfView = null;
+        }
+        if (dbHelper != null) {
+            dbHelper.close();
+        }
+        super.onDestroy();
+    }
+
     /**
      * Show the table of contents dialog.
      */
@@ -597,10 +719,14 @@ public class ReaderActivity extends AppCompatActivity {
             return;
         }
 
-        // Extract TOC from EPUB
-        List<EPUBParser.TocEntry> toc = EPUBParser.extractTOC(epubExtractDir, null);
+        // Extract TOC from EPUB (cached during setup)
+        List<EPUBParser.TocEntry> toc = tocEntries;
         if (toc == null || toc.isEmpty()) {
-            Toast.makeText(this, "No se pudo extraer el índice", Toast.LENGTH_SHORT).show();
+            toc = EPUBParser.extractTOC(
+                    epubExtractDir, EPUBParser.findContentDir(epubExtractDir));
+        }
+        if (toc == null || toc.isEmpty()) {
+            Toast.makeText(this, "Este libro no tiene índice", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -610,24 +736,57 @@ public class ReaderActivity extends AppCompatActivity {
             entries.add(new TOCDialog.TocEntry(entry.title, entry.href, entry.depth));
         }
 
-        // Show TOC dialog
-        TOCDialog tocDialog = new TOCDialog(this, entries);
-        tocDialog.show();
+        // TOCDialog shows itself in its constructor
+        new TOCDialog(this, entries);
     }
 
     /**
-     * Navigate to a specific TOC entry.
+     * Navigate to the chapter referenced by a TOC href.
      */
-    public void navigateToTocEntry(String title) {
-        // Find the chapter index by title
+    public void navigateToTocEntry(String href) {
+        if (href == null || epubChapters == null || epubChapters.isEmpty()) {
+            return;
+        }
+
+        String cleanHref = href.split("#")[0];
+        while (cleanHref.startsWith("/")) {
+            cleanHref = cleanHref.substring(1);
+        }
+
+        // Resolve the href against the OPF directory and compare canonical paths
+        File target = null;
+        try {
+            File base = epubContentDir != null ? epubContentDir : epubExtractDir;
+            target = new File(base, cleanHref).getCanonicalFile();
+            for (int i = 0; i < epubChapters.size(); i++) {
+                File chapter = new File(epubChapters.get(i)).getCanonicalFile();
+                if (chapter.equals(target)) {
+                    openChapter(i);
+                    return;
+                }
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error resolving TOC href: " + href, e);
+        }
+
+        // Fallback: match by file name
+        String fileName = new File(cleanHref).getName();
         for (int i = 0; i < epubChapters.size(); i++) {
-            String chapterPath = epubChapters.get(i);
-            if (chapterPath != null && chapterPath.contains(title)) {
-                currentChapterIndex = i;
-                updateChapterTitle(i);
-                renderChapter(i);
-                break;
+            if (new File(epubChapters.get(i)).getName().equals(fileName)) {
+                openChapter(i);
+                return;
             }
         }
+
+        Toast.makeText(this, "No se encontró el capítulo", Toast.LENGTH_SHORT).show();
+    }
+
+    private void openChapter(int index) {
+        currentChapterIndex = index;
+        if (progressSeek != null) {
+            progressSeek.setProgress(index);
+        }
+        updateChapterTitle(index);
+        renderChapter(index);
     }
 }

@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 public class BookmarksActivity extends AppCompatActivity {
 
     private RecyclerView recyclerView;
+    private View emptyState;
     private BookmarksAdapter bookmarksAdapter;
     private BookmarksDBHelper dbHelper;
     private String currentBookPath;
@@ -27,17 +28,17 @@ public class BookmarksActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bookmarks);
 
-        Toolbar toolbar = findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.bookmarks_toolbar);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
 
         dbHelper = new BookmarksDBHelper(this);
         currentBookPath = getIntent().getStringExtra("bookPath");
 
-        recyclerView = findViewById(R.id.recyclerView);
+        emptyState = findViewById(R.id.bookmarks_empty_state);
+        recyclerView = findViewById(R.id.bookmarks_recycler);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
         bookmarksAdapter = new BookmarksAdapter(this, new BookmarksAdapter.OnBookmarkClickListener() {
@@ -45,9 +46,11 @@ public class BookmarksActivity extends AppCompatActivity {
             public void onBookmarkClick(int position) {
                 // Open the book at the bookmark position
                 String bookmarkValue = bookmarksAdapter.getBookmarkValue(position);
-                if (currentBookPath != null) {
+                String path = bookmarksAdapter.getBookPath(position);
+                if (path == null) path = currentBookPath;
+                if (path != null) {
                     Intent intent = new Intent(BookmarksActivity.this, ReaderActivity.class);
-                    intent.putExtra("bookPath", currentBookPath);
+                    intent.putExtra("bookPath", path);
                     intent.putExtra("position", bookmarkValue);
                     startActivity(intent);
                 }
@@ -59,6 +62,7 @@ public class BookmarksActivity extends AppCompatActivity {
                 Toast.makeText(BookmarksActivity.this,
                         getString(R.string.bookmark_removed),
                         Toast.LENGTH_SHORT).show();
+                updateEmptyState();
             }
         });
 
@@ -80,6 +84,14 @@ public class BookmarksActivity extends AppCompatActivity {
             bookmarksAdapter.setBookmarks(cursor);
         } else {
             bookmarksAdapter.setBookmarks(null);
+        }
+        updateEmptyState();
+    }
+
+    private void updateEmptyState() {
+        if (emptyState != null) {
+            emptyState.setVisibility(
+                    bookmarksAdapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
         }
     }
 

@@ -16,22 +16,22 @@ Most reading apps are bloated with ads, accounts, and features you never use. Le
 - **No Accounts** — No sign-up, no registration, no tracking.
 - **No Internet Needed** — Your books stay on your device.
 - **True Dark Mode** — Not just a theme — optimized for night reading.
-- **2.6MB APK** — Lightning fast to download and install.
+- **Lightweight & offline** — Fast to install, no network required.
 
 ## 📖 Features
 
 ### PDF Reading
 - Full PDF document support
 - Pinch-to-zoom and swipe navigation
-- Page flip animations
-- Dark mode optimized for PDF viewing
+- Page slider to jump anywhere in the document
+- Remembers the last page you read
 
 ### EPUB Reading
 - EPUB 2.0 and EPUB 3.0 support
-- Table of contents navigation
-- Chapter-by-chapter reading
+- Table of contents (nav.xhtml and toc.ncx)
+- Chapter-by-chapter reading in spine order
 - Customizable font size
-- Dark mode with warm text colors
+- Dark reading background with light text
 
 ### Bookmarks & Progress
 - Save reading position automatically
@@ -67,8 +67,8 @@ LectorMobile respects your privacy:
 - EPUB reading with chapter navigation
 - Dark mode default
 - Bookmarks system
-- Progress tracking
-- 2.6MB lightweight APK
+- Automatic reading position per book
+- Lightweight offline APK
 
 ## 📞 Support
 

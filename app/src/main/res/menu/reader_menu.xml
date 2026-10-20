@@ -7,14 +7,18 @@
         android:title="@string/action_bookmark"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/menuToc"
+        android:title="@string/action_toc"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuFontSizeDown"
         android:icon="@android:drawable/ic_menu_zoom"
-        android:title="@string/font_size"
+        android:title="@string/action_font_size_down"
         app:showAsAction="never" />
     <item
         android:id="@+id/menuFontSizeUp"
         android:icon="@android:drawable/ic_menu_zoom"
-        android:title="@string/font_size"
+        android:title="@string/action_font_size_up"
         app:showAsAction="never" />
     <item
         android:id="@+id/menuDarkMode"
