@@ -2,7 +2,8 @@
 
 ## Estado actual (2025-10-20)
 
-**Versión 1.1.0 (versionCode 3)** — Retomar lectura exacta + progreso visible.
+**Versión 1.2.0 (versionCode 4)** — Modo oscuro real para PDF.
+La 1.1.0 (versionCode 3) trajo retomar lectura exacta + progreso visible.
 La 1.0.1 (versionCode 2) fue APK release firmado, zipaligned e instalado y
 probado en un emulador ARM64 con Android 16 (API 37).
 
@@ -112,8 +113,6 @@ $ANDROID_HOME/build-tools/36.0.0/apksigner sign \
 
 ## Limitaciones conocidas
 
-- El visor PDF no invierte los colores del documento: el fondo de la página sigue
-  siendo blanco. El modo oscuro aplica al entorno de la app.
 - Los EPUB se extraen a `cacheDir` en cada apertura (se limpian al cerrar; no
   persisten). Para libros muy grandes conviene moverlos a `filesDir`.
 - No hay soporte de DRM (Adobe/Readium) ni de EPUB con fuentes cifradas.

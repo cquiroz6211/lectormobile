@@ -181,8 +181,18 @@ public class ReaderActivity extends AppCompatActivity {
         });
 
         // PDF viewer setup with v2.0.2 API
+        loadPdfDocument(startPage);
+    }
+
+    /**
+     * Load (or reload) the PDF with the current theme. The viewer applies
+     * nightMode() as an inverted-color ColorMatrix at load time, so toggling
+     * dark mode for a PDF means reloading at the current page.
+     */
+    private void loadPdfDocument(int startPage) {
         pdfView.fromFile(bookFile)
                 .defaultPage(startPage)
+                .nightMode(isDarkMode)
                 .enableSwipe(true)
                 .swipeHorizontal(false)
                 .enableDoubletap(true)
@@ -597,7 +607,10 @@ public class ReaderActivity extends AppCompatActivity {
             pdfView.setBackgroundColor(0xFFFFFFFF);
         }
 
-        if (!isPdf) {
+        if (isPdf) {
+            // nightMode() is applied at load time: reload at the current page
+            loadPdfDocument(currentPage);
+        } else {
             // Re-render with new theme
             renderChapter(currentChapterIndex);
         }
