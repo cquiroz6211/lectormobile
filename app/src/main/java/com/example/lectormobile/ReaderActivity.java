@@ -9,6 +9,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.util.Log;
+import android.view.ActionMode;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -26,6 +27,8 @@ import com.github.barteksc.pdfviewer.PDFView;
 import com.github.barteksc.pdfviewer.listener.OnPageChangeListener;
 
 import java.io.File;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,6 +71,46 @@ public class ReaderActivity extends AppCompatActivity {
     private int restoreGeneration = 0;
     private final Runnable savePositionRunnable = this::saveCurrentReadingPosition;
 
+    // Annotations (spec S1, S3): pending navigation from the annotations list
+    private long jumpAnnotationId = -1;
+    private boolean annotationsJsReady = false;
+    private static final String JS_ANNOTATIONS = "window.HL={"
+        + "nodes:function(){var a=[],w=document.createTreeWalker(document.body,4/*SHOW_TEXT*/,null,false);"
+        + "while(w.nextNode()){a.push(w.currentNode);}return a;},"
+        + "total:function(){var n=this.nodes(),t=0;for(var i=0;i<n.length;i++)t+=n[i].nodeValue.length;return t;},"
+        + "loc:function(off){var n=this.nodes(),acc=0;"
+        + "for(var i=0;i<n.length;i++){var L=n[i].nodeValue.length;"
+        + "if(off<acc+L)return{n:n[i],o:off-acc};acc+=L;}return null;},"
+        + "wrap:function(s,e,id,note){try{if(e<=s)return false;this.buildMap();"
+        + "var self=this,wrapped=0,n=this.nodes();"
+        + "n.forEach(function(node){var p=node.parentElement;"
+        + "if(p&&p.classList&&(p.classList.contains('hl')||p.classList.contains('hl-note')))return;"
+        + "var so=self.off(node);if(so<0)return;var len=node.nodeValue.length;"
+        + "var a=Math.max(so,s),b=Math.min(so+len,e);if(b<=a)return;"
+        + "var r=document.createRange();r.setStart(node,a-so);r.setEnd(node,b-so);"
+        + "var span=document.createElement('span');"
+        + "span.className=note?'hl-note':'hl';span.setAttribute('data-id',id);"
+        + "if(note)span.setAttribute('title',note);"
+        + "try{r.surroundContents(span);self._map=null;wrapped++;}catch(err){}});"
+        + "return wrapped>0;}catch(e){return false;}},"
+        + "_map:null,"
+        + "buildMap:function(){var n=this.nodes(),map=new Map(),acc=0;"
+        + "for(var i=0;i<n.length;i++){map.set(n[i],acc);acc+=n[i].nodeValue.length;}"
+        + "this._map=map;},"
+        + "off:function(node){if(!this._map)this.buildMap();"
+        + "var v=this._map.get(node);return v===undefined?-1:v;},"
+        + "sel:function(){try{var s=window.getSelection();"
+        + "if(!s||s.rangeCount===0||s.isCollapsed)return null;"
+        + "var r=s.getRangeAt(0);this.buildMap();"
+        + "var A=this.off(r.startContainer),B=this.off(r.endContainer);"
+        + "if(A<0||B<0)return null;"
+        + "return JSON.stringify({s:A+r.startOffset,e:B+r.endOffset,text:s.toString()});"
+        + "}catch(e){return null;}},"
+        + "clear:function(){window.getSelection().removeAllRanges();},"
+        + "jump:function(id){var el=document.querySelector('[data-id=\"'+id+'\"]');"
+        + "if(el){el.scrollIntoView({block:'center'});return true;}return false;}"
+        + "};'ok'";
+
     // PDF state
     private int currentPage = 0;
     private int totalPages = 0;
@@ -109,6 +152,7 @@ public class ReaderActivity extends AppCompatActivity {
         // Get book path from intent
         bookPath = getIntent().getStringExtra("bookPath");
         initialPosition = getIntent().getStringExtra("position");
+        jumpAnnotationId = getIntent().getLongExtra("annotationId", -1);
         Uri dataUri = getIntent().getData();
 
         if (bookPath != null) {
@@ -224,10 +268,12 @@ public class ReaderActivity extends AppCompatActivity {
 
         // Exact position (spec S1): restore after the chapter finishes loading
         // and keep the saved fraction fresh while the user scrolls.
+        webView.addJavascriptInterface(new AnnotationBridge(), "LectorAnnotations");
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(android.webkit.WebView view, String url) {
                 applyPendingRestore();
+                applyAnnotations();
             }
         });
         webView.setOnScrollChangeListener(
@@ -414,7 +460,11 @@ public class ReaderActivity extends AppCompatActivity {
                 + "font-family: 'Segoe UI', sans-serif; line-height: 1.8; "
                 + "padding: 16px; font-size: " + fontSize + "px; } "
                 + "a { color: #64b5f6; } img { max-width: 100%; height: auto; } "
-                + "h1, h2, h3 { color: " + color + "; } </style>";
+                + "h1, h2, h3 { color: " + color + "; } "
+                + ".hl { background-color: rgba(255,214,0,0.55); border-radius: 2px; } "
+                + ".hl-note { background-color: rgba(255,214,0,0.55); "
+                + "border-bottom: 2px dotted #c8a600; border-radius: 2px; } "
+                + "</style>";
     }
 
     /**
@@ -769,6 +819,11 @@ public class ReaderActivity extends AppCompatActivity {
             bookmarkItem.setIcon(hasBookmark ?
                     R.drawable.ic_bookmark : R.drawable.ic_bookmark_border);
         }
+        // Annotations only exist for EPUB (PDFs have no annotations, spec S4)
+        MenuItem annotationsItem = menu.findItem(R.id.menuAnnotations);
+        if (annotationsItem != null) {
+            annotationsItem.setVisible(!isPdf);
+        }
         return true;
     }
 
@@ -780,6 +835,11 @@ public class ReaderActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.menuBookmark) {
             addBookmark();
+            return true;
+        } else if (id == R.id.menuAnnotations) {
+            Intent intent = new Intent(this, AnnotationsActivity.class);
+            intent.putExtra("bookPath", bookPath);
+            startActivity(intent);
             return true;
         } else if (id == R.id.menuToc) {
             showTOC();
@@ -838,6 +898,142 @@ public class ReaderActivity extends AppCompatActivity {
             dbHelper.close();
         }
         super.onDestroy();
+    }
+
+    // ─── Annotations (spec S1, S3) ───
+
+    /**
+     * Add «Resaltar» / «Nota» to the text-selection action mode (EPUB only).
+     */
+    @Override
+    public void onActionModeStarted(ActionMode mode) {
+        if (!isPdf && webView != null) {
+            Menu menu = mode.getMenu();
+            menu.add("Resaltar").setOnMenuItemClickListener(item -> {
+                captureSelection(null);
+                mode.finish();
+                return true;
+            });
+            menu.add("Nota").setOnMenuItemClickListener(item -> {
+                captureSelectionPromptNote();
+                mode.finish();
+                return true;
+            });
+        }
+        super.onActionModeStarted(mode);
+    }
+
+    /**
+     * Read the current WebView selection as {start,end,text} and insert it
+     * as an annotation (spec S1). promptForNote opens the note dialog first.
+     */
+    private void captureSelection(String presetNote) {
+        webView.evaluateJavascript("window.HL && window.HL.sel()", value -> {
+            if (value == null || "null".equals(value)) {
+                Toast.makeText(this, "No se pudo capturar la selección",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                JSONObject sel = new JSONObject(value);
+                int s = sel.getInt("s");
+                int e = sel.getInt("e");
+                String text = sel.optString("text", "");
+                if (e <= s || text.trim().isEmpty()) return;
+                String note = presetNote != null && !presetNote.trim().isEmpty()
+                        ? presetNote.trim() : null;
+                long id = dbHelper.insertAnnotation(
+                        bookPath, currentChapterIndex, s, e, text, note);
+                webView.evaluateJavascript("window.HL.clear()", null);
+                applyAnnotations();
+                Toast.makeText(this,
+                        note != null ? R.string.annotation_note_saved
+                                : R.string.annotation_highlighted,
+                        Toast.LENGTH_SHORT).show();
+            } catch (Exception ex) {
+                Log.e(TAG, "Error saving annotation", ex);
+            }
+        });
+    }
+
+    /** Ask for the note text, then save the selection with it (spec S1). */
+    private void captureSelectionPromptNote() {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setHint(R.string.annotation_note_hint);
+        input.setSingleLine(false);
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.annotation_note_title)
+                .setView(input)
+                .setPositiveButton(android.R.string.ok,
+                        (dlg, w) -> captureSelection(input.getText().toString()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * Re-apply every annotation of the current chapter as visible marks,
+     * then jump to the pending annotation if any (spec S3, S4).
+     */
+    private void applyAnnotations() {
+        if (isPdf || webView == null || bookPath == null) return;
+        ensureAnnotationsJs();
+        android.database.Cursor c = null;
+        try {
+            c = dbHelper.getAnnotations(bookPath, currentChapterIndex);
+            StringBuilder js = new StringBuilder("(function(){try{");
+            boolean any = false;
+            while (c.moveToNext()) {
+                long id = c.getLong(c.getColumnIndexOrThrow("id"));
+                int s = c.getInt(c.getColumnIndexOrThrow("start_offset"));
+                int e = c.getInt(c.getColumnIndexOrThrow("end_offset"));
+                String note = c.getString(c.getColumnIndexOrThrow("note"));
+                String text = c.getString(c.getColumnIndexOrThrow("text"));
+                js.append("window.HL.wrap(").append(s).append(',').append(e)
+                        .append(',').append(id).append(',')
+                        .append(note == null ? "null" : quoteJs(note))
+                        .append(");");
+                any = true;
+            }
+            if (jumpAnnotationId >= 0) {
+                js.append("window.HL.jump(").append(jumpAnnotationId).append(");");
+                jumpAnnotationId = -1;
+            }
+            js.append("}catch(e){}})()");
+            if (any || js.indexOf("jump(") >= 0) {
+                webView.evaluateJavascript(js.toString(), null);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error applying annotations", e);
+        } finally {
+            if (c != null) c.close();
+        }
+    }
+
+    private void ensureAnnotationsJs() {
+        if (annotationsJsReady) return;
+        webView.evaluateJavascript(JS_ANNOTATIONS, null);
+        annotationsJsReady = true;
+    }
+
+    /** JS string literal with single quotes escaped (note text). */
+    private static String quoteJs(String s) {
+        return "'" + s.replace("\\", "\\\\").replace("'", "\\'")
+                .replace("\n", " ") + "'";
+    }
+
+    /**
+     * Bridge called from JS when the user taps a highlight that has a note.
+     */
+    private class AnnotationBridge {
+        @android.webkit.JavascriptInterface
+        public void showNote(final String note) {
+            runOnUiThread(() -> new androidx.appcompat.app.AlertDialog.Builder(
+                    ReaderActivity.this)
+                    .setTitle(R.string.annotation_note_title)
+                    .setMessage(note)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show());
+        }
     }
 
     /**

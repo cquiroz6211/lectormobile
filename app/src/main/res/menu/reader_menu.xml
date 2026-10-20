@@ -7,6 +7,11 @@
         android:title="@string/action_bookmark"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/menuAnnotations"
+        android:icon="@drawable/ic_bookmark"
+        android:title="@string/action_annotations"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuToc"
         android:title="@string/action_toc"
         app:showAsAction="never" />

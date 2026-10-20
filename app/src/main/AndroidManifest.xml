@@ -51,6 +51,12 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".AnnotationsActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".SettingsActivity"
             android:excludeFromRecents="true"
             android:exported="false"

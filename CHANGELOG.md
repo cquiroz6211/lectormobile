@@ -1,5 +1,17 @@
 # Changelog — LectorMobile
 
+## [1.4.0] — 2026-10-20
+
+### Añadido
+
+- **Subrayado y notas en EPUB**: al seleccionar texto en el lector aparecen
+  «Resaltar» y «Nota» junto a las acciones del sistema. Las marcas persisten
+  por libro y capítulo (nueva tabla `annotations`, migración aditiva v5) y se
+  re-aplican al reabrir el capítulo; las notas se ven con un toque sobre el
+  texto marcado. Nueva pantalla «Notas y subrayados» desde el menú del lector
+  (libro actual) y el menú principal (todos los libros), con salto directo al
+  punto. Borrar un libro borra sus anotaciones. Los PDF quedan como lector.
+
 ## [1.3.0] — 2026-10-20
 
 ### Añadido
