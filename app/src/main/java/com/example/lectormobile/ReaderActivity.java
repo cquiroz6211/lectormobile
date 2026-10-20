@@ -13,6 +13,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.webkit.WebSettings;
+import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -56,6 +57,16 @@ public class ReaderActivity extends AppCompatActivity {
     private File epubContentDir;
     private String initialPosition;
     private List<EPUBParser.TocEntry> tocEntries;
+
+    // Exact position restore (spec S1): scroll fraction inside the chapter.
+    // pendingRestoreFraction >= 0 until the saved chapter's WebView finished
+    // loading; restoreInFlight covers the retry window until the scroll lands.
+    private float pendingRestoreFraction = -1f;
+    private int restoreChapterIndex = -1;
+    private float currentScrollFraction = 0f;
+    private boolean restoreInFlight = false;
+    private int restoreGeneration = 0;
+    private final Runnable savePositionRunnable = this::saveCurrentReadingPosition;
 
     // PDF state
     private int currentPage = 0;
@@ -201,6 +212,20 @@ public class ReaderActivity extends AppCompatActivity {
         webView.getSettings().setUseWideViewPort(true);
         webView.getSettings().setLoadWithOverviewMode(true);
 
+        // Exact position (spec S1): restore after the chapter finishes loading
+        // and keep the saved fraction fresh while the user scrolls.
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(android.webkit.WebView view, String url) {
+                applyPendingRestore();
+            }
+        });
+        webView.setOnScrollChangeListener(
+                (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+                    refreshProgressLabel();
+                    scheduleSavePosition();
+                });
+
         // Extract EPUB in background thread
         new Thread(() -> {
             try {
@@ -250,17 +275,24 @@ public class ReaderActivity extends AppCompatActivity {
                         return;
                     }
                     currentChapterIndex = 0;
+                    currentScrollFraction = 0f;
                     String saved = initialPosition != null
                             ? initialPosition
                             : dbHelper.getReadingPosition(bookPath);
-                    if (saved != null && saved.startsWith("chapter:")) {
-                        try {
-                            int chapter = Integer.parseInt(saved.substring(8));
-                            if (chapter >= 0 && chapter < epubChapters.size()) {
-                                currentChapterIndex = chapter;
-                            }
-                        } catch (NumberFormatException ignored) { }
+                    ReadingPosition savedPosition = ReadingPosition.parse(saved);
+                    if (savedPosition != null && !savedPosition.isPage
+                            && savedPosition.index < epubChapters.size()) {
+                        currentChapterIndex = savedPosition.index;
+                        currentScrollFraction = savedPosition.fraction;
+                        if (savedPosition.fraction > 0f) {
+                            pendingRestoreFraction = savedPosition.fraction;
+                        }
+                        restoreChapterIndex = savedPosition.index;
                     }
+
+                    // Total known before the first render so the label and the
+                    // percent never show "Capítulo 1 / 0" (spec S2).
+                    totalPages = epubChapters.size();
 
                     updateChapterTitle(currentChapterIndex);
                     renderChapter(currentChapterIndex);
@@ -285,9 +317,6 @@ public class ReaderActivity extends AppCompatActivity {
                                 @Override
                                 public void onStopTrackingTouch(SeekBar seekBar) {}
                             });
-
-                    totalPages = epubChapters.size();
-                    updateProgress();
                 });
 
             } catch (Exception e) {
@@ -308,6 +337,14 @@ public class ReaderActivity extends AppCompatActivity {
     private void renderChapter(int index) {
         if (index < 0 || index >= epubChapters.size()) {
             return;
+        }
+
+        // Navigating to a new chapter supersedes any pending or running
+        // restore so a stale retry can never scroll the wrong chapter.
+        restoreGeneration++;
+        restoreInFlight = false;
+        if (pendingRestoreFraction >= 0 && index != restoreChapterIndex) {
+            pendingRestoreFraction = -1f;
         }
 
         String chapterPath = epubChapters.get(index);
@@ -407,16 +444,118 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Update progress display.
+     * Refresh the progress label with the percent read so far (spec S2).
+     */
+    private void refreshProgressLabel() {
+        float fraction = pendingRestoreFraction >= 0
+                ? currentScrollFraction
+                : computeScrollFraction();
+        int percent = isPdf
+                ? ReadingPosition.percent(currentPage, 1f, totalPages)
+                : ReadingPosition.percent(currentChapterIndex, fraction, totalPages);
+
+        String text;
+        if (isPdf) {
+            text = "Página " + (currentPage + 1) + " / " + totalPages;
+        } else {
+            text = "Capítulo " + (currentChapterIndex + 1) + " / " + totalPages;
+        }
+        if (percent >= 0) {
+            text += " · " + percent + "%";
+        }
+        progressTextView.setText(text);
+    }
+
+    /**
+     * Update progress display and persist the position.
      */
     private void updateProgress() {
+        refreshProgressLabel();
+        saveCurrentReadingPosition();
+    }
+
+    /**
+     * Scroll fraction (0..1) of the WebView inside the current chapter
+     * (spec S1). 0 when the chapter fits on screen or is not loaded yet.
+     */
+    private float computeScrollFraction() {
+        if (isPdf || webView == null) return 0f;
+        int scrollable = scrollableHeight();
+        if (scrollable <= 0) return 0f;
+        float fraction = (float) webView.getScrollY() / scrollable;
+        return Math.max(0f, Math.min(1f, fraction));
+    }
+
+    private int scrollableHeight() {
+        int contentHeight = (int) (webView.getContentHeight() * webView.getScale());
+        return contentHeight - webView.getHeight();
+    }
+
+    /**
+     * Persist the exact position (spec S1): page for PDF, chapter + fraction
+     * for EPUB. Skipped while a restore is pending or in flight so the saved
+     * spot is never clobbered by the chapter-start scroll.
+     */
+    private void saveCurrentReadingPosition() {
+        if (bookPath == null || dbHelper == null) return;
         if (isPdf) {
-            progressTextView.setText("Página " + (currentPage + 1) + " / " + totalPages);
-        } else {
-            progressTextView.setText("Capítulo " + (currentChapterIndex + 1) + " / " + totalPages);
+            int percent = ReadingPosition.percent(currentPage, 1f, totalPages);
+            dbHelper.saveReadingPosition(bookPath, "page:" + currentPage, percent);
+            return;
         }
-        // Save position automatically
-        saveReadingPosition(isPdf ? "page:" + currentPage : "chapter:" + currentChapterIndex);
+        if (pendingRestoreFraction >= 0 || restoreInFlight) return;
+        currentScrollFraction = computeScrollFraction();
+        String value = new ReadingPosition(
+                false, currentChapterIndex, currentScrollFraction).format();
+        int percent = ReadingPosition.percent(
+                currentChapterIndex, currentScrollFraction, totalPages);
+        dbHelper.saveReadingPosition(bookPath, value, percent);
+    }
+
+    /**
+     * Debounced position save (spec S1): scroll events fire far more often
+     * than the database write is worth.
+     */
+    private void scheduleSavePosition() {
+        handler.removeCallbacks(savePositionRunnable);
+        handler.postDelayed(savePositionRunnable, 700);
+    }
+
+    /**
+     * Scroll to the saved fraction once the chapter finished loading.
+     */
+    private void applyPendingRestore() {
+        if (pendingRestoreFraction < 0) return;
+        float fraction = pendingRestoreFraction;
+        pendingRestoreFraction = -1f;
+        restoreInFlight = true;
+        currentScrollFraction = fraction;
+        scrollToFraction(fraction, 0, restoreGeneration);
+    }
+
+    /**
+     * Scroll to a fraction of the chapter, retrying while the WebView has
+     * not laid its content out yet (bounded to ~1s).
+     */
+    private void scrollToFraction(float fraction, int attempt, int generation) {
+        if (webView == null || isFinishing() || generation != restoreGeneration) {
+            restoreInFlight = false;
+            return;
+        }
+        int scrollable = scrollableHeight();
+        if (scrollable <= 0) {
+            if (attempt < 20) {
+                handler.postDelayed(
+                        () -> scrollToFraction(fraction, attempt + 1, generation), 50);
+            } else {
+                restoreInFlight = false; // give up: content never became scrollable
+            }
+            return;
+        }
+        restoreInFlight = false;
+        webView.scrollTo(0, Math.round(fraction * scrollable));
+        refreshProgressLabel();
+        scheduleSavePosition();
     }
 
     /**
@@ -488,22 +627,6 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void decreaseFontSize() {
         changeFontSize(-2);
-    }
-
-    /**
-     * Save reading position.
-     */
-    private void saveReadingPosition(String position) {
-        if (bookPath != null) {
-            dbHelper.saveReadingPosition(bookPath, position);
-        }
-    }
-
-    /**
-     * Get the current reading position.
-     */
-    private String getReadingPosition() {
-        return bookPath != null ? dbHelper.getReadingPosition(bookPath) : null;
     }
 
     private String currentPositionValue() {
@@ -671,10 +794,9 @@ public class ReaderActivity extends AppCompatActivity {
             webView.pauseTimers();
         }
         // PDF v2.0.2 doesn't have onPause() - use invalidate() if needed
-        if (isPdf) {
-            // Save position on pause
-            saveReadingPosition("page:" + currentPage);
-        }
+        // Flush the debounced position save (PDF and EPUB, spec S1).
+        handler.removeCallbacks(savePositionRunnable);
+        saveCurrentReadingPosition();
     }
 
     @Override

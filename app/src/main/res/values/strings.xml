@@ -101,4 +101,5 @@
 
     <string name="page_number">Página %1$d</string>
     <string name="chapter_number">Capítulo %1$d</string>
+    <string name="progress_percent">%1$d%%</string>
 </resources>

@@ -59,6 +59,37 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
+            <!-- Reading progress (spec S3): bar + percent, hidden if never opened -->
+            <LinearLayout
+                android:id="@+id/item_book_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingTop="6dp"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:id="@+id/item_book_progress_bar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="0dp"
+                    android:layout_height="4dp"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progressTint="@color/primary"
+                    android:progressBackgroundTint="@color/text_hint" />
+
+                <TextView
+                    android:id="@+id/item_book_percent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:minWidth="36dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
         </LinearLayout>
 
         <!-- Bookmark Star (right side) -->

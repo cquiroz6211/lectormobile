@@ -1,5 +1,25 @@
 # Changelog — LectorMobile
 
+## [1.1.0] — 2026-10-20
+
+### Añadido
+
+- **Reanudar lectura exacta en EPUB**: la posición se guarda como
+  `chapter:N:fraction` (capítulo + % de scroll) y al reabrir el libro vuelve
+  al mismo punto, no al inicio del capítulo. Los formatos anteriores
+  (`chapter:N`, `page:N`) siguen siendo válidos.
+- **% de progreso en el lector**: junto al contador aparece el progreso del
+  libro («Página 3 / 100 · 3%», «Capítulo 3 / 40 · 6%»); se omite si el total
+  aún no se conoce.
+- **Progreso en la biblioteca**: cada libro muestra una barra de progreso con
+  su porcentaje (oculta si nunca se abrió) y la lista se ordena por «último
+  leído», con orden alfabético como desempate.
+
+### Corregido
+
+- **«Capítulo 1 / 0» al abrir un EPUB**: el total de capítulos ahora se fija
+  antes del primer render.
+
 ## [1.0.1] — 2025-10-20
 
 ### Corregido

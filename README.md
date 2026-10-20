@@ -8,7 +8,8 @@ A fast, minimal PDF and EPUB reader for Android with dark mode and bookmarks.
 - 📚 **EPUB Reading** — EPUB 2/3 support with chapter navigation and TOC
 - 🌙 **Dark Mode** — Default dark theme optimized for night reading
 - 🔖 **Bookmarks** — Save and manage bookmarks with SQLite persistence
-- 📄 **Progress Tracking** — Automatic reading position saving
+- 📄 **Progress Tracking** — Automatic reading position saving with exact EPUB scroll restore
+- 📊 **Reading Progress** — Percent indicator in the reader and progress bar per book in the library, sorted by last read
 - 🔍 **Search** — Filter books by name
 - ⚡ **Lightweight** — Fast local rendering, no accounts or network
 - 🔒 **Privacy** — No ads, no tracking, no internet needed

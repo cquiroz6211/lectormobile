@@ -55,6 +55,8 @@ public class MainActivity extends AppCompatActivity {
         boolean isBookmarked;
         long lastRead;
         int timesRead;
+        /** Reading progress percent 0..100; -1 = never opened (spec S3). */
+        int percent = -1;
 
         BookItem(String path, boolean bookmarked, long lastRead, int timesRead) {
             this.path = path;
@@ -328,6 +330,9 @@ public class MainActivity extends AppCompatActivity {
             cursor.close();
         }
 
+        // Reading progress percent per book (spec S3)
+        HashMap<String, Integer> progress = dbHelper.getAllProgress();
+
         // Build book list
         ArrayList<BookItem> books = new ArrayList<>();
         for (String path : currentPaths) {
@@ -337,7 +342,10 @@ public class MainActivity extends AppCompatActivity {
                 long[] stats = history.get(path);
                 long lastRead = stats != null ? stats[0] : 0;
                 int timesRead = stats != null ? (int) stats[1] : 0;
-                books.add(new BookItem(path, bookmarked, lastRead, timesRead));
+                BookItem item = new BookItem(path, bookmarked, lastRead, timesRead);
+                Integer percent = progress.get(path);
+                item.percent = percent != null ? percent : -1;
+                books.add(item);
             }
         }
 
@@ -393,6 +401,15 @@ public class MainActivity extends AppCompatActivity {
                 filtered.add(item);
             }
         }
+
+        // "Último leído" order (spec S3): most recently read first; ties and
+        // never-opened books fall back to case-insensitive alphabetical.
+        java.util.Collections.sort(filtered, (a, b) -> {
+            if (a.lastRead != b.lastRead) {
+                return Long.compare(b.lastRead, a.lastRead);
+            }
+            return a.name.compareToIgnoreCase(b.name);
+        });
 
         if (booksAdapter != null) {
             booksAdapter.setBooks(filtered);

@@ -6,15 +6,18 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import java.util.HashMap;
+
 /**
  * SQLite database helper for bookmarks and reading history.
  * Tables:
  *   - bookmarks (id, book_path, bookmark_value, timestamp, label)
  *   - reading_history (id, book_path, last_read_at, times_read)
+ *   - reading_positions (id, book_path, position, updated_at, percent)  [v4]
  */
 public class BookmarksDBHelper extends SQLiteOpenHelper {
     private static final String DATABASE_NAME = "lectormobile.db";
-    private static final int DATABASE_VERSION = 3;
+    private static final int DATABASE_VERSION = 4;
     private static final String TABLE_BOOKMARKS = "bookmarks";
     private static final String TABLE_HISTORY = "reading_history";
     private static final String TABLE_POSITIONS = "reading_positions";
@@ -28,6 +31,7 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
     private static final String COLUMN_UPDATED_AT = "updated_at";
     private static final String COLUMN_LAST_READ = "last_read_at";
     private static final String COLUMN_TIMES_READ = "times_read";
+    private static final String COLUMN_PERCENT = "percent";
 
     private static final String CREATE_TABLE_BOOKMARKS =
         "CREATE TABLE IF NOT EXISTS " + TABLE_BOOKMARKS + " (" +
@@ -49,7 +53,8 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
         COLUMN_BOOK_PATH + " TEXT UNIQUE NOT NULL, " +
         COLUMN_POSITION + " TEXT NOT NULL, " +
-        COLUMN_UPDATED_AT + " INTEGER NOT NULL)";
+        COLUMN_UPDATED_AT + " INTEGER NOT NULL, " +
+        COLUMN_PERCENT + " INTEGER NOT NULL DEFAULT 0)";
 
     public BookmarksDBHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -69,6 +74,14 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
         db.execSQL(CREATE_TABLE_HISTORY);
         db.execSQL(CREATE_TABLE_POSITIONS);
 
+        // v3 -> v4: reading progress percent (0..100, 0 = not read yet).
+        // Additive column; try/catch because CREATE TABLE IF NOT EXISTS above
+        // may already have created the table with the column on fresh installs.
+        try {
+            db.execSQL("ALTER TABLE " + TABLE_POSITIONS + " ADD COLUMN " +
+                COLUMN_PERCENT + " INTEGER NOT NULL DEFAULT 0");
+        } catch (Exception ignored) { }
+
         // Older builds stored the reading position as a fake bookmark.
         try {
             db.execSQL("DELETE FROM " + TABLE_BOOKMARKS + " WHERE " + COLUMN_LABEL + " = 'position'");
@@ -78,14 +91,31 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
     // ─── Reading position ───
 
     public void saveReadingPosition(String bookPath, String position) {
+        saveReadingPosition(bookPath, position, -1);
+    }
+
+    /**
+     * Save the reading position together with the book progress percent
+     * (0..100). Pass a negative percent to keep the stored percent
+     * (unknown total, spec S2) — implemented as an UPDATE so the REPLACE
+     * path never resets an existing percent to its default.
+     */
+    public void saveReadingPosition(String bookPath, String position, int percent) {
         if (bookPath == null || position == null) return;
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
-        values.put(COLUMN_BOOK_PATH, bookPath);
         values.put(COLUMN_POSITION, position);
         values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
-        db.insertWithOnConflict(TABLE_POSITIONS, null, values,
-                SQLiteDatabase.CONFLICT_REPLACE);
+        if (percent >= 0) {
+            values.put(COLUMN_PERCENT, Math.min(100, percent));
+        }
+        int updated = db.update(TABLE_POSITIONS, values,
+                COLUMN_BOOK_PATH + " = ?", new String[]{bookPath});
+        if (updated == 0) {
+            values.put(COLUMN_BOOK_PATH, bookPath);
+            db.insertWithOnConflict(TABLE_POSITIONS, null, values,
+                    SQLiteDatabase.CONFLICT_REPLACE);
+        }
         db.close();
     }
 
@@ -112,6 +142,24 @@ public class BookmarksDBHelper extends SQLiteOpenHelper {
                 COLUMN_BOOK_PATH + " = ?", new String[]{bookPath});
         db.close();
         return deleted;
+    }
+
+    /**
+     * Reading progress percent per book for the library screen (spec S3).
+     * Returns book_path -> percent (0..100). Books never opened are absent.
+     */
+    public HashMap<String, Integer> getAllProgress() {
+        HashMap<String, Integer> progress = new HashMap<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery(
+            "SELECT " + COLUMN_BOOK_PATH + ", " + COLUMN_PERCENT +
+            " FROM " + TABLE_POSITIONS, null);
+        while (cursor.moveToNext()) {
+            progress.put(cursor.getString(0), cursor.getInt(1));
+        }
+        cursor.close();
+        db.close();
+        return progress;
     }
 
     // ─── Bookmark Methods ───
