@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -171,6 +172,102 @@ public class EPUBParser {
         Matcher m = Pattern.compile(name + "\\s*=\\s*[\"']([^\"']*)[\"']",
                 Pattern.CASE_INSENSITIVE).matcher(tag);
         return m.find() ? m.group(1) : null;
+    }
+
+    /**
+     * Extract the cover image declared in the OPF and copy it to destFile.
+     * Resolution order (spec S1 of odd/tasks/library-covers.md):
+     *   1. EPUB 3: manifest item with properties="cover-image"
+     *   2. EPUB 2: meta[name=cover] content=id -> manifest item with that id
+     *   3. any manifest image item whose href starts with "cover"
+     * Returns true when a file was copied; false means "no cover" and the
+     * caller falls back to the generic icon. Does not use android.util.Log
+     * so it stays unit-testable on the JVM.
+     */
+    public static boolean extractCover(File extractDir, File destFile) {
+        if (extractDir == null || destFile == null) return false;
+        try {
+            File opf = findOpfFile(extractDir);
+            if (opf == null) return false;
+
+            File baseDir = opf.getParentFile() != null ? opf.getParentFile() : extractDir;
+            String xml = readFile(opf);
+
+            String href = findCoverHref(xml);
+            if (href == null) return false;
+
+            File cover = new File(baseDir, href.split("#")[0]);
+            if (!cover.exists() || !cover.isFile()) return false;
+
+            copyFile(cover, destFile);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Find the cover href in an OPF document string, or null.
+     */
+    private static String findCoverHref(String opfXml) {
+        if (opfXml == null) return null;
+
+        // EPUB 2: <meta name="cover" content="id"/>
+        String metaId = null;
+        Matcher meta = Pattern.compile("<meta\\b[^>]*>",
+                Pattern.CASE_INSENSITIVE).matcher(opfXml);
+        while (meta.find()) {
+            String tag = meta.group();
+            String name = attr(tag, "name");
+            if (name != null && name.equalsIgnoreCase("cover")) {
+                metaId = attr(tag, "content");
+                break;
+            }
+        }
+
+        // EPUB 3 property wins over the EPUB 2 meta declaration.
+        String propertyHref = null;
+        String metaHref = null;
+        String looseHref = null;
+
+        Matcher item = Pattern.compile("<item\\b[^>]*>",
+                Pattern.CASE_INSENSITIVE).matcher(opfXml);
+        while (item.find()) {
+            String tag = item.group();
+            String href = attr(tag, "href");
+            String id = attr(tag, "id");
+            String props = attr(tag, "properties");
+            String media = attr(tag, "media-type");
+
+            if (href == null) continue;
+            if (media != null && !media.startsWith("image/")) continue;
+
+            if (props != null && props.contains("cover-image")) {
+                propertyHref = href;
+            }
+            if (metaId != null && metaId.equals(id)) {
+                metaHref = href;
+            }
+            if (looseHref == null && new File(href).getName().toLowerCase()
+                    .startsWith("cover")) {
+                looseHref = href;
+            }
+        }
+
+        if (propertyHref != null) return propertyHref;
+        if (metaHref != null) return metaHref;
+        return looseHref;
+    }
+
+    private static void copyFile(File src, File dest) throws IOException {
+        try (java.io.FileInputStream in = new java.io.FileInputStream(src);
+             OutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+        }
     }
 
     /**
