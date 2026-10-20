@@ -2,6 +2,7 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/coordinatorLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
@@ -77,6 +78,16 @@
             android:layout_height="match_parent"
             android:visibility="gone" />
 
+        <!-- Sepia warm tint overlay for PDF -->
+        <View
+            android:id="@+id/sepiaOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#22A06B33"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+
     </FrameLayout>
 
     <!-- Bottom Controls -->
@@ -106,7 +117,10 @@
             android:gravity="center"
             android:paddingTop="4dp"
             android:textColor="@color/text_secondary"
-            android:textSize="12sp" />
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?attr/selectableItemBackground" />
 
     </LinearLayout>
 

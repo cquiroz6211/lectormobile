@@ -8,23 +8,27 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import com.google.android.material.switchmaterial.SwitchMaterial;
 
 /**
  * Settings screen. Uses the custom UI defined in activity_settings.xml.
  */
 public class SettingsActivity extends AppCompatActivity {
 
-    private SwitchMaterial darkModeSwitch;
+    private Spinner themeSpinner;
     private Spinner fontSizeSpinner;
     private TextView versionValue;
     private SharedPreferences prefs;
+
+    private static final String[] THEME_VALUES = {
+            ReadingTheme.THEME_LIGHT,
+            ReadingTheme.THEME_SEPIA,
+            ReadingTheme.THEME_DARK
+    };
 
     // Font size values (px)
     private static final int[] FONT_SIZES = {12, 14, 16, 18, 20, 22, 24, 26, 28};
@@ -43,14 +47,43 @@ public class SettingsActivity extends AppCompatActivity {
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
-        // Dark mode switch
-        darkModeSwitch = findViewById(R.id.settings_switch_dark_mode);
-        darkModeSwitch.setChecked(prefs.getBoolean("dark_mode", true));
-        darkModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            prefs.edit().putBoolean("dark_mode", isChecked).apply();
-            Toast.makeText(this,
-                    isChecked ? "Fondo oscuro activado" : "Fondo claro activado",
-                    Toast.LENGTH_SHORT).show();
+        // Theme spinner
+        themeSpinner = findViewById(R.id.settings_spinner_theme);
+        ArrayAdapter<CharSequence> themeAdapter = ArrayAdapter.createFromResource(
+                this, R.array.theme_entries, android.R.layout.simple_spinner_dropdown_item);
+        themeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        themeSpinner.setAdapter(themeAdapter);
+
+        String currentTheme = ReadingTheme.getTheme(prefs);
+        int themePos = 2; // Dark default
+        if (ReadingTheme.THEME_LIGHT.equals(currentTheme)) {
+            themePos = 0;
+        } else if (ReadingTheme.THEME_SEPIA.equals(currentTheme)) {
+            themePos = 1;
+        }
+        themeSpinner.setSelection(themePos);
+
+        themeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selectedTheme = THEME_VALUES[position];
+                String prevTheme = ReadingTheme.getTheme(prefs);
+                if (!selectedTheme.equals(prevTheme)) {
+                    ReadingTheme.setTheme(prefs, selectedTheme);
+                    String toastMsg;
+                    if (position == 0) {
+                        toastMsg = "Tema claro activado";
+                    } else if (position == 1) {
+                        toastMsg = "Tema sepia activado";
+                    } else {
+                        toastMsg = "Tema oscuro activado";
+                    }
+                    Toast.makeText(SettingsActivity.this, toastMsg, Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
         });
 
         // Font size spinner

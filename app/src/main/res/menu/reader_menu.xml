@@ -16,6 +16,10 @@
         android:title="@string/action_toc"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menuJumpTo"
+        android:title="@string/action_jump_to"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuFontSizeDown"
         android:icon="@android:drawable/ic_menu_zoom"
         android:title="@string/action_font_size_down"
@@ -26,8 +30,8 @@
         android:title="@string/action_font_size_up"
         app:showAsAction="never" />
     <item
-        android:id="@+id/menuDarkMode"
-        android:title="@string/dark_mode"
+        android:id="@+id/menuTheme"
+        android:title="@string/reading_theme"
         app:showAsAction="never" />
     <item
         android:id="@+id/menuSettings"

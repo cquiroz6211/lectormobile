@@ -22,9 +22,13 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.github.barteksc.pdfviewer.PDFView;
 import com.github.barteksc.pdfviewer.listener.OnPageChangeListener;
+import com.google.android.material.appbar.AppBarLayout;
 
 import java.io.File;
 import org.json.JSONObject;
@@ -119,8 +123,15 @@ public class ReaderActivity extends AppCompatActivity {
     private int pdfPagesForProgress = 0;
 
     // UI state
-    private boolean isDarkMode = false;
+    private String currentTheme = ReadingTheme.THEME_DARK;
+    private boolean isDarkMode = true;
     private int fontSize = 18;
+    private boolean isControlsVisible = true;
+
+    private View rootView;
+    private AppBarLayout appBarLayout;
+    private View bottomControls;
+    private View sepiaOverlay;
 
     private Handler handler = new Handler(Looper.getMainLooper());
 
@@ -128,6 +139,11 @@ public class ReaderActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_reader);
+
+        rootView = findViewById(R.id.coordinatorLayout);
+        appBarLayout = findViewById(R.id.appBarLayout);
+        bottomControls = findViewById(R.id.bottomControls);
+        sepiaOverlay = findViewById(R.id.sepiaOverlay);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -140,6 +156,7 @@ public class ReaderActivity extends AppCompatActivity {
         webView = findViewById(R.id.webView);
         progressSeek = findViewById(R.id.progressSeek);
         progressTextView = findViewById(R.id.tvProgress);
+        progressTextView.setOnClickListener(v -> showJumpToDialog());
         chapterTitleTextView = findViewById(R.id.chapterTitle);
         progressBar = findViewById(R.id.progressBar);
 
@@ -147,7 +164,8 @@ public class ReaderActivity extends AppCompatActivity {
         dbHelper = new BookmarksDBHelper(this);
 
         // Restore settings
-        isDarkMode = prefs.getBoolean("dark_mode", true);
+        currentTheme = ReadingTheme.getTheme(prefs);
+        isDarkMode = ReadingTheme.isDarkMode(currentTheme);
         fontSize = prefs.getInt("font_size", 18);
         if (fontSize < 12 || fontSize > 28) fontSize = 18;
 
@@ -176,7 +194,7 @@ public class ReaderActivity extends AppCompatActivity {
 
         isPdf = bookPath.toLowerCase().endsWith(".pdf");
 
-        setupDarkMode();
+        applyThemeColors();
         applyFontSize();
 
         if (isPdf) {
@@ -233,15 +251,20 @@ public class ReaderActivity extends AppCompatActivity {
     /**
      * Load (or reload) the PDF with the current theme. The viewer applies
      * nightMode() as an inverted-color ColorMatrix at load time, so toggling
-     * dark mode for a PDF means reloading at the current page.
+     * theme for a PDF means reloading at the current page.
      */
     private void loadPdfDocument(int startPage) {
+        boolean isDark = ReadingTheme.isDarkMode(currentTheme);
         pdfView.fromFile(bookFile)
                 .defaultPage(startPage)
-                .nightMode(isDarkMode)
+                .nightMode(isDark)
                 .enableSwipe(true)
                 .swipeHorizontal(false)
                 .enableDoubletap(true)
+                .onTap(e -> {
+                    toggleControls();
+                    return true;
+                })
                 .onPageChange(new OnPageChangeListener() {
                     @Override
                     public void onPageChanged(int page, int pageCount) {
@@ -430,9 +453,21 @@ public class ReaderActivity extends AppCompatActivity {
         final String finalBaseUrl = baseUrl;
         runOnUiThread(() -> {
             String css = getCSS();
+            String clickScript = "<script>"
+                    + "document.addEventListener('click', function(e) {"
+                    + "  var el = (e.target && e.target.nodeType === 3) ? e.target.parentElement : e.target;"
+                    + "  if (el && el.closest && (el.closest('a') || el.closest('.hl-note'))) return;"
+                    + "  var sel = window.getSelection ? window.getSelection() : null;"
+                    + "  if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;"
+                    + "  if (window.LectorAnnotations && window.LectorAnnotations.onContentTapped) {"
+                    + "    window.LectorAnnotations.onContentTapped();"
+                    + "  }"
+                    + "});"
+                    + "</script>";
+
             String fullHTML = "<html><head>"
                     + "<meta name='viewport' content='width=device-width, "
-                    + "initial-scale=1.0'>" + css + "</head>"
+                    + "initial-scale=1.0'>" + css + clickScript + "</head>"
                     + "<body>" + finalContent + "</body></html>";
 
             webView.loadDataWithBaseURL(finalBaseUrl,
@@ -447,22 +482,41 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Get dark mode CSS for EPUB content.
+     * Get CSS for EPUB content based on current reading theme and font size.
      */
     private String getCSS() {
+        String bg;
         String color;
-        if (isDarkMode) {
-            color = "#E8E6E3";
-        } else {
-            color = "#000000";
+        String link;
+        String headings;
+
+        switch (currentTheme) {
+            case ReadingTheme.THEME_LIGHT:
+                bg = "#FFFFFF";
+                color = "#1A1A1A";
+                link = "#1976D2";
+                headings = "#111111";
+                break;
+            case ReadingTheme.THEME_SEPIA:
+                bg = "#F8F1E3";
+                color = "#433422";
+                link = "#795548";
+                headings = "#2B1D0F";
+                break;
+            case ReadingTheme.THEME_DARK:
+            default:
+                bg = "#1A1A1A";
+                color = "#E8E6E3";
+                link = "#64B5F6";
+                headings = "#E8E6E3";
+                break;
         }
-        String bg = isDarkMode ? "#1a1a1a" : "#ffffff";
 
         return "<style>body { background: " + bg + "; color: " + color + "; "
                 + "font-family: 'Segoe UI', sans-serif; line-height: 1.8; "
                 + "padding: 16px; font-size: " + fontSize + "px; } "
-                + "a { color: #64b5f6; } img { max-width: 100%; height: auto; } "
-                + "h1, h2, h3 { color: " + color + "; } "
+                + "a { color: " + link + "; } img { max-width: 100%; height: auto; } "
+                + "h1, h2, h3, h4, h5, h6 { color: " + headings + "; } "
                 + ".hl { background-color: rgba(255,214,0,0.55); border-radius: 2px; } "
                 + ".hl-note { background-color: rgba(255,214,0,0.55); "
                 + "border-bottom: 2px dotted #c8a600; border-radius: 2px; } "
@@ -621,17 +675,121 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Setup dark mode for the reader.
+     * Apply theme colors to content views, toolbars, and system bars.
      */
-    private void setupDarkMode() {
-        isDarkMode = prefs.getBoolean("dark_mode", true); // Default to dark
-        if (isDarkMode) {
-            webView.setBackgroundColor(0xFF1a1a1a);
-            pdfView.setBackgroundColor(0xFF1a1a1a);
-        } else {
-            webView.setBackgroundColor(0xFFFFFFFF);
-            pdfView.setBackgroundColor(0xFFFFFFFF);
+    private void applyThemeColors() {
+        int bgContent;
+        int bgBars;
+        int primaryText;
+        int secondaryText;
+
+        switch (currentTheme) {
+            case ReadingTheme.THEME_LIGHT:
+                bgContent = 0xFFFFFFFF;
+                bgBars = 0xFFF5F5F5;
+                primaryText = 0xFF1A1A1A;
+                secondaryText = 0xFF666666;
+                break;
+            case ReadingTheme.THEME_SEPIA:
+                bgContent = 0xFFF8F1E3;
+                bgBars = 0xFFEFE6D5;
+                primaryText = 0xFF433422;
+                secondaryText = 0xFF795548;
+                break;
+            case ReadingTheme.THEME_DARK:
+            default:
+                bgContent = 0xFF1A1A1A;
+                bgBars = 0xFF212121;
+                primaryText = 0xFFE8E6E3;
+                secondaryText = 0xFFB0B0B0;
+                break;
         }
+
+        if (rootView != null) rootView.setBackgroundColor(bgContent);
+        if (webView != null) webView.setBackgroundColor(bgContent);
+        if (pdfView != null) pdfView.setBackgroundColor(bgContent);
+
+        if (sepiaOverlay != null) {
+            sepiaOverlay.setVisibility(isPdf && ReadingTheme.THEME_SEPIA.equals(currentTheme)
+                    ? View.VISIBLE : View.GONE);
+        }
+
+        if (appBarLayout != null) appBarLayout.setBackgroundColor(bgBars);
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            toolbar.setBackgroundColor(bgBars);
+            toolbar.setTitleTextColor(primaryText);
+            if (toolbar.getNavigationIcon() != null) {
+                toolbar.getNavigationIcon().setTint(primaryText);
+            }
+            if (toolbar.getOverflowIcon() != null) {
+                toolbar.getOverflowIcon().setTint(primaryText);
+            }
+        }
+        if (bottomControls != null) bottomControls.setBackgroundColor(bgBars);
+
+        if (chapterTitleTextView != null) chapterTitleTextView.setTextColor(primaryText);
+        if (progressTextView != null) progressTextView.setTextColor(secondaryText);
+
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (insetsController != null) {
+            insetsController.setAppearanceLightStatusBars(!ReadingTheme.THEME_DARK.equals(currentTheme));
+            insetsController.setAppearanceLightNavigationBars(!ReadingTheme.THEME_DARK.equals(currentTheme));
+        }
+
+        invalidateOptionsMenu();
+    }
+
+    /**
+     * Apply a new reading theme and re-render the document.
+     */
+    public void applyReadingTheme(String theme) {
+        currentTheme = ReadingTheme.resolveTheme(theme, null);
+        isDarkMode = ReadingTheme.isDarkMode(currentTheme);
+        ReadingTheme.setTheme(prefs, currentTheme);
+
+        applyThemeColors();
+
+        if (isPdf) {
+            loadPdfDocument(currentPage);
+        } else {
+            renderChapter(currentChapterIndex);
+        }
+    }
+
+    /**
+     * Show theme selector dialog.
+     */
+    public void showThemeDialog() {
+        CharSequence[] items = {
+                getString(R.string.theme_light),
+                getString(R.string.theme_sepia),
+                getString(R.string.theme_dark)
+        };
+        int checkedItem = 2; // dark default
+        if (ReadingTheme.THEME_LIGHT.equals(currentTheme)) {
+            checkedItem = 0;
+        } else if (ReadingTheme.THEME_SEPIA.equals(currentTheme)) {
+            checkedItem = 1;
+        }
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.reading_theme)
+                .setSingleChoiceItems(items, checkedItem, (dialog, which) -> {
+                    String selected;
+                    if (which == 0) {
+                        selected = ReadingTheme.THEME_LIGHT;
+                    } else if (which == 1) {
+                        selected = ReadingTheme.THEME_SEPIA;
+                    } else {
+                        selected = ReadingTheme.THEME_DARK;
+                    }
+                    applyReadingTheme(selected);
+                    dialog.dismiss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     /**
@@ -645,27 +803,154 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Toggle dark mode (made public for ReaderMenu access).
+     * Toggle dark mode (kept for compatibility with legacy callers).
      */
     public void toggleDarkMode() {
-        isDarkMode = !isDarkMode;
-        prefs.edit().putBoolean("dark_mode", isDarkMode).apply();
-
-        if (isDarkMode) {
-            webView.setBackgroundColor(0xFF1a1a1a);
-            pdfView.setBackgroundColor(0xFF1a1a1a);
+        if (ReadingTheme.THEME_DARK.equals(currentTheme)) {
+            applyReadingTheme(ReadingTheme.THEME_LIGHT);
         } else {
-            webView.setBackgroundColor(0xFFFFFFFF);
-            pdfView.setBackgroundColor(0xFFFFFFFF);
+            applyReadingTheme(ReadingTheme.THEME_DARK);
         }
+    }
 
+    /**
+     * Toggle full-screen immersive reading controls.
+     */
+    public void toggleControls() {
+        isControlsVisible = !isControlsVisible;
+
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+
+        if (isControlsVisible) {
+            if (insetsController != null) {
+                insetsController.show(WindowInsetsCompat.Type.systemBars());
+            }
+            if (appBarLayout != null) {
+                appBarLayout.animate().cancel();
+                appBarLayout.setVisibility(View.VISIBLE);
+                int h = appBarLayout.getHeight() > 0 ? appBarLayout.getHeight() : 150;
+                appBarLayout.setTranslationY(-h);
+                appBarLayout.animate().translationY(0).setDuration(250).start();
+            }
+            if (bottomControls != null) {
+                bottomControls.animate().cancel();
+                bottomControls.setVisibility(View.VISIBLE);
+                int h = bottomControls.getHeight() > 0 ? bottomControls.getHeight() : 150;
+                bottomControls.setTranslationY(h);
+                bottomControls.animate().translationY(0).setDuration(250).start();
+            }
+        } else {
+            if (insetsController != null) {
+                insetsController.setSystemBarsBehavior(
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            }
+            if (appBarLayout != null) {
+                appBarLayout.animate().cancel();
+                int h = appBarLayout.getHeight() > 0 ? appBarLayout.getHeight() : 150;
+                appBarLayout.animate()
+                        .translationY(-h)
+                        .setDuration(250)
+                        .withEndAction(() -> appBarLayout.setVisibility(View.GONE))
+                        .start();
+            }
+            if (bottomControls != null) {
+                bottomControls.animate().cancel();
+                int h = bottomControls.getHeight() > 0 ? bottomControls.getHeight() : 150;
+                bottomControls.animate()
+                        .translationY(h)
+                        .setDuration(250)
+                        .withEndAction(() -> bottomControls.setVisibility(View.GONE))
+                        .start();
+            }
+        }
+    }
+
+    /**
+     * Show jump to page / chapter dialog.
+     */
+    public void showJumpToDialog() {
         if (isPdf) {
-            // nightMode() is applied at load time: reload at the current page
-            loadPdfDocument(currentPage);
+            if (totalPages <= 0) {
+                Toast.makeText(this, R.string.reader_error_opening, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            final android.widget.EditText input = new android.widget.EditText(this);
+            input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            input.setHint("1 - " + totalPages);
+            input.setText(String.valueOf(currentPage + 1));
+            input.setSelectAllOnFocus(true);
+            input.setPadding(48, 32, 48, 32);
+
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.jump_to_page_title)
+                    .setView(input)
+                    .setPositiveButton(R.string.jump_action, (dialog, which) -> {
+                        String text = input.getText().toString().trim();
+                        if (text.isEmpty()) return;
+                        try {
+                            int page = Integer.parseInt(text);
+                            if (page < 1 || page > totalPages) {
+                                Toast.makeText(this,
+                                        getString(R.string.jump_to_invalid_page, totalPages),
+                                        Toast.LENGTH_SHORT).show();
+                            } else {
+                                currentPage = page - 1;
+                                pdfView.jumpTo(currentPage, true);
+                            }
+                        } catch (NumberFormatException e) {
+                            Toast.makeText(this,
+                                    getString(R.string.jump_to_invalid_page, totalPages),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
         } else {
-            // Re-render with new theme
-            renderChapter(currentChapterIndex);
+            if (epubChapters == null || epubChapters.isEmpty()) {
+                Toast.makeText(this, "Capítulos no disponibles", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int totalChapters = epubChapters.size();
+            final android.widget.EditText input = new android.widget.EditText(this);
+            input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+            input.setHint("1 - " + totalChapters);
+            input.setText(String.valueOf(currentChapterIndex + 1));
+            input.setSelectAllOnFocus(true);
+            input.setPadding(48, 32, 48, 32);
+
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.jump_to_chapter_title)
+                    .setView(input)
+                    .setPositiveButton(R.string.jump_action, (dialog, which) -> {
+                        String text = input.getText().toString().trim();
+                        if (text.isEmpty()) return;
+                        try {
+                            int chapter = Integer.parseInt(text);
+                            if (chapter < 1 || chapter > totalChapters) {
+                                Toast.makeText(this,
+                                        getString(R.string.jump_to_invalid_chapter, totalChapters),
+                                        Toast.LENGTH_SHORT).show();
+                            } else {
+                                loadChapter(chapter - 1);
+                            }
+                        } catch (NumberFormatException e) {
+                            Toast.makeText(this,
+                                    getString(R.string.jump_to_invalid_chapter, totalChapters),
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
         }
+    }
+
+    /**
+     * Load an EPUB chapter by index.
+     */
+    public void loadChapter(int index) {
+        openChapter(index);
     }
 
     /**
@@ -814,12 +1099,29 @@ public class ReaderActivity extends AppCompatActivity {
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         super.onPrepareOptionsMenu(menu);
+        int iconColor;
+        if (ReadingTheme.THEME_LIGHT.equals(currentTheme)) {
+            iconColor = 0xFF1A1A1A;
+        } else if (ReadingTheme.THEME_SEPIA.equals(currentTheme)) {
+            iconColor = 0xFF433422;
+        } else {
+            iconColor = 0xFFE8E6E3;
+        }
+        for (int i = 0; i < menu.size(); i++) {
+            MenuItem item = menu.getItem(i);
+            if (item.getIcon() != null) {
+                item.getIcon().setTint(iconColor);
+            }
+        }
         MenuItem bookmarkItem = menu.findItem(R.id.menuBookmark);
         if (bookmarkItem != null) {
             boolean hasBookmark = bookPath != null &&
                     dbHelper.hasBookmark(bookPath, currentPositionValue());
             bookmarkItem.setIcon(hasBookmark ?
                     R.drawable.ic_bookmark : R.drawable.ic_bookmark_border);
+            if (bookmarkItem.getIcon() != null) {
+                bookmarkItem.getIcon().setTint(hasBookmark ? 0xFFFFA726 : iconColor);
+            }
         }
         // Annotations only exist for EPUB (PDFs have no annotations, spec S4)
         MenuItem annotationsItem = menu.findItem(R.id.menuAnnotations);
@@ -846,14 +1148,17 @@ public class ReaderActivity extends AppCompatActivity {
         } else if (id == R.id.menuToc) {
             showTOC();
             return true;
+        } else if (id == R.id.menuJumpTo) {
+            showJumpToDialog();
+            return true;
         } else if (id == R.id.menuFontSizeUp) {
             increaseFontSize();
             return true;
         } else if (id == R.id.menuFontSizeDown) {
             decreaseFontSize();
             return true;
-        } else if (id == R.id.menuDarkMode) {
-            toggleDarkMode();
+        } else if (id == R.id.menuTheme) {
+            showThemeDialog();
             return true;
         } else if (id == R.id.menuSettings) {
             startActivity(new Intent(this, SettingsActivity.class));
@@ -881,6 +1186,27 @@ public class ReaderActivity extends AppCompatActivity {
             webView.resumeTimers();
         }
         // PDF v2.0.2 doesn't have onResume()
+        String savedTheme = ReadingTheme.getTheme(prefs);
+        int savedFontSize = prefs.getInt("font_size", 18);
+
+        boolean themeChanged = !savedTheme.equals(currentTheme);
+        boolean fontChanged = (savedFontSize != fontSize);
+
+        if (themeChanged || fontChanged) {
+            currentTheme = savedTheme;
+            isDarkMode = ReadingTheme.isDarkMode(currentTheme);
+            fontSize = savedFontSize;
+            applyThemeColors();
+            applyFontSize();
+
+            if (isPdf) {
+                if (themeChanged) {
+                    loadPdfDocument(currentPage);
+                }
+            } else {
+                renderChapter(currentChapterIndex);
+            }
+        }
     }
 
     @Override
@@ -1092,9 +1418,14 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
-     * Bridge called from JS when the user taps a highlight that has a note.
+     * Bridge called from JS when the user interacts with EPUB content.
      */
     private class AnnotationBridge {
+        @android.webkit.JavascriptInterface
+        public void onContentTapped() {
+            runOnUiThread(() -> toggleControls());
+        }
+
         @android.webkit.JavascriptInterface
         public void showNote(final String note) {
             runOnUiThread(() -> new androidx.appcompat.app.AlertDialog.Builder(

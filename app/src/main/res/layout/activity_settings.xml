@@ -116,7 +116,7 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
-                    <!-- Dark Mode Toggle -->
+                    <!-- Reading Theme Selector -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -128,17 +128,16 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/settings_dark_mode"
+                            android:text="@string/settings_reading_theme"
                             android:textColor="@color/text_primary"
                             android:textSize="16sp" />
 
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/settings_switch_dark_mode"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:checked="true"
-                            app:thumbTint="@color/on_primary"
-                            app:trackTint="@color/primary" />
+                        <Spinner
+                            android:id="@+id/settings_spinner_theme"
+                            android:layout_width="160dp"
+                            android:layout_height="48dp"
+                            android:background="@drawable/bg_spinner"
+                            android:popupBackground="@color/surface" />
 
                     </LinearLayout>
 

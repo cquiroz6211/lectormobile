@@ -1,8 +1,10 @@
 # LectorMobile — Backlog y estado del proyecto
 
-## Estado actual (2025-10-20)
+## Estado actual (2026-10-20)
 
-**Versión 1.4.0 (versionCode 6)** — Subrayado y notas en EPUB.
+**Versión 1.4.2 (versionCode 8)** — Modo lectura inmersivo, tema sepia/cálido y salto rápido a página/capítulo.
+La 1.4.1 (versionCode 7) corrigió la inyección de acciones de selección en ActionModes primarios.
+La 1.4.0 (versionCode 6) trajo subrayado y notas en EPUB.
 La 1.3.0 (versionCode 5) trajo portadas reales en la biblioteca.
 La 1.2.0 (versionCode 4) trajo el modo oscuro real para PDF.
 La 1.1.0 (versionCode 3) trajo retomar lectura exacta + progreso visible.

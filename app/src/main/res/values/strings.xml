@@ -113,4 +113,19 @@
     <string name="annotation_chapter">Capítulo %1$d</string>
     <string name="action_annotations">Notas y subrayados</string>
     <string name="item_annotation_delete_desc">Eliminar anotación</string>
+
+    <!-- Reading Themes (v1.5.0) -->
+    <string name="reading_theme">Tema de lectura</string>
+    <string name="settings_reading_theme">Tema de lectura</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_sepia">Sepia / Cálido</string>
+    <string name="theme_dark">Oscuro</string>
+
+    <!-- Jump to Page / Chapter (v1.5.0) -->
+    <string name="action_jump_to">Ir a…</string>
+    <string name="jump_to_page_title">Ir a página</string>
+    <string name="jump_to_chapter_title">Ir a capítulo</string>
+    <string name="jump_to_invalid_page">Página fuera de rango (1 - %1$d)</string>
+    <string name="jump_to_invalid_chapter">Capítulo fuera de rango (1 - %1$d)</string>
+    <string name="jump_action">Ir</string>
 </resources>

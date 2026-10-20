@@ -1,5 +1,24 @@
 # Changelog — LectorMobile
 
+## [1.4.2] — 2026-10-20
+
+### Añadido
+
+- **Temas de lectura (Claro, Sepia, Oscuro)**:
+  - Selector de tema con opciones Claro, Sepia / Cálido y Oscuro, disponible tanto desde el menú del lector («Tema de lectura») como desde la pantalla de Ajustes («Apariencia»).
+  - Preferencia persistente `reading_theme` con sincronización bidireccional y retrocompatibilidad con el booleano heredado `dark_mode`.
+  - EPUB con paleta CSS específica por tema (Claro `#FFFFFF`/`#1A1A1A`, Sepia `#F8F1E3`/`#433422`, Oscuro `#1A1A1A`/`#E8E6E3`).
+  - PDF con modo noche real para Oscuro, fondo blanco para Claro y superposición cálida `#22A06B33` con fondo cálido `#F8F1E3` para Sepia.
+  - Barras superior e inferior adaptativas con contraste optimizado de íconos y textos (`#212121` oscuro, `#F5F5F5` claro, `#EFE6D5` sepia).
+- **Modo lectura inmersivo (pantalla completa)**:
+  - Toque en la página (PDF o EPUB) para alternar los controles con animación suave (deslizamiento de barras) y ocultamiento/aparición de barras del sistema (`WindowInsetsControllerCompat`).
+  - Detección inteligente en EPUB que no interfiere con enlaces (`<a>`), notas de texto (`.hl-note`) ni selecciones activas.
+- **Salto rápido a página o capítulo («Ir a…»)**:
+  - Diálogo de salto numérico accesible pulsando el indicador de progreso o desde el menú de opciones («Ir a…»).
+  - Salto directo a la página en PDF y al capítulo en EPUB con validación de rangos.
+- **Limpieza de recursos**:
+  - Eliminación de menús redundantes en desuso (`menu_main.xml` y `menu_reader.xml`).
+
 ## [1.4.1] — 2026-10-20
 
 ### Corregido

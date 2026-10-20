@@ -27,4 +27,16 @@
         <item>30</item>
         <item>32</item>
     </string-array>
+
+    <string-array name="theme_entries">
+        <item>@string/theme_light</item>
+        <item>@string/theme_sepia</item>
+        <item>@string/theme_dark</item>
+    </string-array>
+
+    <string-array name="theme_values">
+        <item>light</item>
+        <item>sepia</item>
+        <item>dark</item>
+    </string-array>
 </resources>
