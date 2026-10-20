@@ -1,5 +1,14 @@
 # Changelog — LectorMobile
 
+## [1.2.0] — 2026-10-20
+
+### Añadido
+
+- **Modo oscuro real para PDF**: los documentos PDF ahora invierten sus
+  colores («papel oscuro») cuando el modo oscuro está activo, mediante
+  `nightMode()` del visor. Alternar el tema recarga el documento en la
+  página actual. Cierra la limitación #1 del backlog.
+
 ## [1.1.0] — 2026-10-20
 
 ### Añadido
