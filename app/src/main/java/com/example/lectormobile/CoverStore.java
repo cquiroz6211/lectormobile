@@ -2,8 +2,6 @@ package com.example.lectormobile;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
@@ -14,7 +12,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -36,8 +33,6 @@ public class CoverStore {
     private static final int TARGET_SIZE = 256;
 
     private final Context context;
-    /** In-flight and resolved cover paths keyed by book path (memoized). */
-    private final ConcurrentHashMap<String, File> cacheIndex = new ConcurrentHashMap<>();
 
     public CoverStore(Context context) {
         this.context = context.getApplicationContext();
@@ -99,7 +94,6 @@ public class CoverStore {
     /** Forget the cached cover for a deleted/changed book. */
     public void invalidate(String bookPath) {
         if (bookPath == null) return;
-        cacheIndex.remove(bookPath);
         File cover = coverFile(bookPath);
         if (cover.exists()) cover.delete();
     }
