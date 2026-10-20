@@ -75,6 +75,13 @@ public class ReaderActivity extends AppCompatActivity {
     private int restoreGeneration = 0;
     private final Runnable savePositionRunnable = this::saveCurrentReadingPosition;
 
+    /**
+     * Optimization S3: SQLite position writes run on this single-threaded
+     * FIFO writer instead of the main thread (computed values are captured
+     * on the caller's thread, the WebView read stays on the main thread).
+     */
+    private final SerialWriter positionWriter = new SerialWriter();
+
     // Annotations (spec S1, S3): pending navigation from the annotations list
     private long jumpAnnotationId = -1;
     private boolean annotationsJsReady = false;
@@ -296,6 +303,18 @@ public class ReaderActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new AnnotationBridge(), "LectorAnnotations");
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(android.webkit.WebView view, String url,
+                    android.graphics.Bitmap favicon) {
+                // Every load swaps in a brand-new document: window.HL and the
+                // painted highlight spans die with it, so drop the latch and
+                // let onPageFinished rebuild both (spec S4: without this,
+                // every capture after the first render returned null and
+                // answered «No se pudo capturar la selección»).
+                annotationsJsReady = false;
+                super.onPageStarted(view, url, favicon);
+            }
+
+            @Override
             public void onPageFinished(android.webkit.WebView view, String url) {
                 applyPendingRestore();
                 applyAnnotations();
@@ -307,10 +326,10 @@ public class ReaderActivity extends AppCompatActivity {
                     scheduleSavePosition();
                 });
 
-        // Extract EPUB in background thread
+        // Extract EPUB in background thread (reusing the extraction cache)
         new Thread(() -> {
             try {
-                // Remove extractions left over from previous sessions
+                // Remove legacy extractions left over in cacheDir by versions < 1.4.3
                 File[] oldDirs = getCacheDir().listFiles(
                         (dir, name) -> name.startsWith("epub_"));
                 if (oldDirs != null) {
@@ -319,13 +338,19 @@ public class ReaderActivity extends AppCompatActivity {
                     }
                 }
 
-                epubExtractDir = new File(getCacheDir(), "epub_" + System.currentTimeMillis());
-                if (epubExtractDir.exists()) {
-                    deleteRecursive(epubExtractDir);
+                // Optimization S1: reuse the previous extraction when the book
+                // file did not change, instead of unzipping on every open.
+                ExtractionCache extractionCache = new ExtractionCache(
+                        new File(getFilesDir(), "epub_cache"));
+                epubExtractDir = extractionCache.getValidDir(bookFile);
+                if (epubExtractDir != null) {
+                    Log.d(TAG, "EPUB extraction cache hit: " + epubExtractDir.getName());
+                } else {
+                    epubExtractDir = extractionCache.newDirFor(bookFile);
+                    EPUBParser.unzip(bookFile, epubExtractDir);
+                    extractionCache.markComplete(epubExtractDir);
+                    Log.d(TAG, "EPUB extracted to cache: " + epubExtractDir.getName());
                 }
-                epubExtractDir.mkdirs();
-
-                EPUBParser.unzip(bookFile, epubExtractDir);
 
                 // Directory that contains the OPF (e.g. "OEBPS"), used as base
                 // for resolving relative links and images.
@@ -614,18 +639,22 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void saveCurrentReadingPosition() {
         if (bookPath == null || dbHelper == null) return;
+        final String path = bookPath;
         if (isPdf) {
-            int percent = ReadingPosition.percent(currentPage, 1f, totalPages);
-            dbHelper.saveReadingPosition(bookPath, "page:" + currentPage, percent);
+            final String value = "page:" + currentPage;
+            final int percent = ReadingPosition.percent(currentPage, 1f, totalPages);
+            positionWriter.write(
+                    () -> dbHelper.saveReadingPosition(path, value, percent));
             return;
         }
         if (pendingRestoreFraction >= 0 || restoreInFlight) return;
         currentScrollFraction = computeScrollFraction();
-        String value = new ReadingPosition(
+        final String value = new ReadingPosition(
                 false, currentChapterIndex, currentScrollFraction).format();
-        int percent = ReadingPosition.percent(
+        final int percent = ReadingPosition.percent(
                 currentChapterIndex, currentScrollFraction, totalPages);
-        dbHelper.saveReadingPosition(bookPath, value, percent);
+        positionWriter.write(
+                () -> dbHelper.saveReadingPosition(path, value, percent));
     }
 
     /**
@@ -1177,6 +1206,10 @@ public class ReaderActivity extends AppCompatActivity {
         // Flush the debounced position save (PDF and EPUB, spec S1).
         handler.removeCallbacks(savePositionRunnable);
         saveCurrentReadingPosition();
+        // Optimization S3: the write runs on the writer thread; wait for it
+        // (and anything still queued) so the freshest position is persisted
+        // before the activity goes away.
+        positionWriter.flush(2000);
     }
 
     @Override
@@ -1211,6 +1244,13 @@ public class ReaderActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        // Stop pending debounced saves BEFORE tearing the WebView down: the
+        // about:blank load can schedule another save (700 ms) that must never
+        // reach the shut-down writer — SerialWriter drops it as a backstop,
+        // because RejectedExecutionException on the main thread would kill
+        // the process (defect found by the v1.4.3 independent review).
+        handler.removeCallbacks(savePositionRunnable);
+        positionWriter.shutdown();
         if (webView != null) {
             webView.loadUrl("about:blank");
             webView.clearHistory();
@@ -1223,6 +1263,8 @@ public class ReaderActivity extends AppCompatActivity {
             pdfView = null;
         }
         if (dbHelper != null) {
+            // Drain the writes queued before shutdown, then close the database.
+            positionWriter.flush(2000);
             dbHelper.close();
         }
         super.onDestroy();
@@ -1241,18 +1283,24 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void addAnnotationItems(final android.view.ActionMode mode, Menu menu) {
         if (menu.findItem(MENU_ITEM_HIGHLIGHT) != null) return; // already added
-        menu.add(Menu.NONE, MENU_ITEM_HIGHLIGHT, Menu.NONE, "Resaltar")
-                .setOnMenuItemClickListener(item -> {
-                    captureSelection(null);
-                    mode.finish();
-                    return true;
-                });
-        menu.add(Menu.NONE, MENU_ITEM_NOTE, Menu.NONE, "Nota")
-                .setOnMenuItemClickListener(item -> {
-                    captureSelectionPromptNote();
-                    mode.finish();
-                    return true;
-                });
+        Log.d(TAG, "HL menu: injecting Resaltar/Nota into action mode");
+        // Always shown: without this the system buries both items in the
+        // floating toolbar's overflow and users never find them (spec S5).
+        MenuItem highlight = menu.add(Menu.NONE, MENU_ITEM_HIGHLIGHT,
+                Menu.NONE, "Resaltar");
+        highlight.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        highlight.setOnMenuItemClickListener(item -> {
+            // The capture callback finishes the mode: finishing here,
+            // before sel() runs, can drop the DOM selection (S4).
+            captureSelection(mode);
+            return true;
+        });
+        MenuItem note = menu.add(Menu.NONE, MENU_ITEM_NOTE, Menu.NONE, "Nota");
+        note.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+        note.setOnMenuItemClickListener(item -> {
+            captureSelectionPromptNote(mode);
+            return true;
+        });
     }
 
     /**
@@ -1319,51 +1367,115 @@ public class ReaderActivity extends AppCompatActivity {
         }
     }
 
+    /** Receives the live selection; s < 0 means «could not capture» (S4). */
+    private interface SelectionSink {
+        void onSelection(int s, int e, String text);
+    }
+
     /**
-     * Read the current WebView selection as {start,end,text} and insert it
-     * as an annotation (spec S1). promptForNote opens the note dialog first.
+     * Read the current WebView selection as {s,e,text}. The read happens
+     * before the action mode is finished and before the note dialog opens:
+     * both events can drop the DOM selection (v1.4.2 bug: captures answered
+     * «No se pudo capturar la selección»).
      */
-    private void captureSelection(String presetNote) {
+    private void readSelection(final SelectionSink sink) {
         webView.evaluateJavascript("window.HL && window.HL.sel()", value -> {
-            if (value == null || "null".equals(value)) {
-                Toast.makeText(this, "No se pudo capturar la selección",
-                        Toast.LENGTH_SHORT).show();
+            if (value == null || "null".equals(value)
+                    || "undefined".equals(value)) {
+                Log.d(TAG, "HL capture: selection invalid (null)");
+                sink.onSelection(-1, -1, null);
                 return;
             }
             try {
-                JSONObject sel = new JSONObject(value);
+                // HL.sel() answers with a JSON string and evaluateJavascript
+                // serializes that string again: unwrap the outer encoding
+                // before parsing (found by the real-tap E2E: otherwise
+                // JSONException swallowed every successful selection).
+                Object parsed = new org.json.JSONTokener(value).nextValue();
+                if (parsed instanceof String) {
+                    parsed = new org.json.JSONTokener((String) parsed)
+                            .nextValue();
+                }
+                if (!(parsed instanceof JSONObject)) {
+                    Log.d(TAG, "HL capture: selection invalid (not an object)");
+                    sink.onSelection(-1, -1, null);
+                    return;
+                }
+                JSONObject sel = (JSONObject) parsed;
                 int s = sel.getInt("s");
                 int e = sel.getInt("e");
                 String text = sel.optString("text", "");
-                if (e <= s || text.trim().isEmpty()) return;
-                String note = presetNote != null && !presetNote.trim().isEmpty()
-                        ? presetNote.trim() : null;
-                long id = dbHelper.insertAnnotation(
-                        bookPath, currentChapterIndex, s, e, text, note);
-                webView.evaluateJavascript("window.HL.clear()", null);
-                applyAnnotations();
-                Toast.makeText(this,
-                        note != null ? R.string.annotation_note_saved
-                                : R.string.annotation_highlighted,
-                        Toast.LENGTH_SHORT).show();
+                if (e <= s || text.trim().isEmpty()) {
+                    Log.d(TAG, "HL capture: selection invalid (empty)");
+                    sink.onSelection(-1, -1, null);
+                    return;
+                }
+                sink.onSelection(s, e, text);
             } catch (Exception ex) {
-                Log.e(TAG, "Error saving annotation", ex);
+                Log.e(TAG, "Error reading selection", ex);
+                sink.onSelection(-1, -1, null);
             }
         });
     }
 
-    /** Ask for the note text, then save the selection with it (spec S1). */
-    private void captureSelectionPromptNote() {
-        android.widget.EditText input = new android.widget.EditText(this);
-        input.setHint(R.string.annotation_note_hint);
-        input.setSingleLine(false);
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(R.string.annotation_note_title)
-                .setView(input)
-                .setPositiveButton(android.R.string.ok,
-                        (dlg, w) -> captureSelection(input.getText().toString()))
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+    /** Insert the captured selection as an annotation (spec S1) and repaint. */
+    private void saveAnnotation(int s, int e, String text, String presetNote) {
+        try {
+            String note = presetNote != null && !presetNote.trim().isEmpty()
+                    ? presetNote.trim() : null;
+            dbHelper.insertAnnotation(
+                    bookPath, currentChapterIndex, s, e, text, note);
+            Log.d(TAG, "HL capture: saved s=" + s + " e=" + e
+                    + (note != null ? " (note)" : ""));
+            webView.evaluateJavascript("window.HL.clear()", null);
+            applyAnnotations();
+            Toast.makeText(this,
+                    note != null ? R.string.annotation_note_saved
+                            : R.string.annotation_highlighted,
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception ex) {
+            Log.e(TAG, "Error saving annotation", ex);
+        }
+    }
+
+    /** «Resaltar» (spec S1, S4): capture first, finish the mode after. */
+    private void captureSelection(final android.view.ActionMode mode) {
+        readSelection((s, e, text) -> {
+            if (s < 0) {
+                Toast.makeText(this, "No se pudo capturar la selección",
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                saveAnnotation(s, e, text, null);
+            }
+            mode.finish();
+        });
+    }
+
+    /**
+     * «Nota» (spec S1, S4): capture the selection first, then ask for the
+     * note text — the dialog opens only once s/e/text are already in hand.
+     */
+    private void captureSelectionPromptNote(final android.view.ActionMode mode) {
+        readSelection((s, e, text) -> {
+            if (s < 0) {
+                Toast.makeText(this, "No se pudo capturar la selección",
+                        Toast.LENGTH_SHORT).show();
+                mode.finish();
+                return;
+            }
+            mode.finish();
+            android.widget.EditText input = new android.widget.EditText(this);
+            input.setHint(R.string.annotation_note_hint);
+            input.setSingleLine(false);
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.annotation_note_title)
+                    .setView(input)
+                    .setPositiveButton(android.R.string.ok,
+                            (dlg, w) -> saveAnnotation(s, e, text,
+                                    input.getText().toString()))
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show();
+        });
     }
 
     /**
@@ -1373,6 +1485,10 @@ public class ReaderActivity extends AppCompatActivity {
     private void applyAnnotations() {
         if (isPdf || webView == null || bookPath == null) return;
         ensureAnnotationsJs();
+        // Diagnostic (v1.4.3): window.HL lives in the rendered document and
+        // dies with every render; log its state per chapter load.
+        webView.evaluateJavascript("typeof window.HL",
+                v -> Log.d(TAG, "HL typeof after render: " + v));
         android.database.Cursor c = null;
         try {
             c = dbHelper.getAnnotations(bookPath, currentChapterIndex);
@@ -1406,9 +1522,13 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     private void ensureAnnotationsJs() {
-        if (annotationsJsReady) return;
+        if (annotationsJsReady) {
+            Log.d(TAG, "HL js: skip (latch still ready)");
+            return;
+        }
         webView.evaluateJavascript(JS_ANNOTATIONS, null);
         annotationsJsReady = true;
+        Log.d(TAG, "HL js: injected");
     }
 
     /** JS string literal with single quotes escaped (note text). */

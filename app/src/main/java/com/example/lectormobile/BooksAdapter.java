@@ -44,6 +44,13 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     /** Books already tried this session: never re-attempt a failed cover. */
     private final Set<String> coverAttempted = new HashSet<>();
+    /**
+     * Decoded covers kept in memory (optimization S2): rebinds while
+     * scrolling bind instantly instead of re-decoding the file every time.
+     * 8 MB budget ≈ 60-70 covers at ~120 KB each.
+     */
+    private final SizeLruCache<String, Bitmap> coverCache =
+            new SizeLruCache<>(8 * 1024 * 1024, Bitmap::getByteCount);
 
     public BooksAdapter(ArrayList<MainActivity.BookItem> bookItems,
                         OnBookClickListener listener,
@@ -150,10 +157,18 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
     /**
      * Load the cover for a book off the main thread. Binds only if the
      * holder still shows the same book path (spec S3). Generation is
-     * attempted once per session per book.
+     * attempted once per session per book; decoded bitmaps are reused from
+     * the memory cache (optimization S2).
      */
     private void loadCover(BookViewHolder holder, String bookPath) {
         if (coverStore == null || bookPath == null) return;
+
+        Bitmap cached = coverCache.get(bookPath);
+        if (cached != null) {
+            bindCover(holder, bookPath, cached);
+            return;
+        }
+
         synchronized (coverAttempted) {
             if (coverAttempted.contains(bookPath)
                     && coverStore.peek(bookPath) == null) {
@@ -169,16 +184,21 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
             if (cover == null) return;
             Bitmap bmp = decodeCover(cover);
             if (bmp == null) return;
-            mainHandler.post(() -> {
-                if (bookPath.equals(holder.bookCover.getTag())) {
-                    holder.bookCover.setColorFilter(null);
-                    holder.bookCover.setImageTintList(null);
-                    holder.bookCover.setImageBitmap(bmp);
-                } else {
-                    bmp.recycle();
-                }
-            });
+            coverCache.put(bookPath, bmp);
+            mainHandler.post(() -> bindCover(holder, bookPath, bmp));
         });
+    }
+
+    /**
+     * Binds only if the holder still shows the same book. Cached bitmaps are
+     * never recycled: the cache owns them until they are evicted.
+     */
+    private void bindCover(BookViewHolder holder, String bookPath, Bitmap bmp) {
+        if (bookPath.equals(holder.bookCover.getTag())) {
+            holder.bookCover.setColorFilter(null);
+            holder.bookCover.setImageTintList(null);
+            holder.bookCover.setImageBitmap(bmp);
+        }
     }
 
     /** Decode a cover file downsampled to ~2x the 48x64dp view. */

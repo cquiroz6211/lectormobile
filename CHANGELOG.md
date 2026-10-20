@@ -1,5 +1,71 @@
 # Changelog — LectorMobile
 
+## [1.4.3] — 2026-10-20
+
+### Añadido
+
+- **«Resaltar» y «Nota» visibles en la barra de selección**: los dos ítems se
+  piden ahora con `SHOW_AS_ACTION_ALWAYS` y aparecen junto a «Copy» en la
+  barra flotante al seleccionar texto, en lugar de quedar escondidos en el
+  overflow (⋮).
+
+### Optimizado
+
+- **Apertura de EPUB sin re-descomprimir**: la extracción del zip se cachea en
+  `filesDir/epub_cache`, identificada por tamaño y fecha de modificación del
+  libro. Abrir un libro sin cambios reutiliza la extracción anterior en lugar
+  de descomprimirlo otra vez (antes se re-extraía en cada apertura). El caché
+  conserva hasta 6 libros (LRU por último uso), descarta extracciones
+  interrumpidas (marcador `.ok`) y sobrevive a la limpieza de caché del
+  sistema; solo guarda datos derivados, nunca toca libros ni datos del usuario.
+- **Portadas sin re-decodificado**: los bitmaps de portada ya decodificados se
+  mantienen en una caché LRU en memoria de 8 MB (`SizeLruCache`); al desplazar
+  la biblioteca las portadas se pintan al instante sin volver a decodificar el
+  archivo en cada bind. Los bitmaps cacheados ya no se reciclan.
+- **Posiciones de lectura fuera del hilo principal**: el guardado debounceado
+  de la posición (PDF y EPUB) se ejecuta ahora en un hilo de escritura dedicado
+  con orden FIFO (`SerialWriter`); el cálculo sigue en el hilo principal. Al
+  pausar y al cerrar se espera a que las escrituras pendientes terminen antes
+  de cerrar la base de datos, y una escritura fallida se registra sin tumbar la
+  app ni bloquear las siguientes.
+
+### Corregido
+
+- **Crash latente al cerrar el lector** (hallado por la revisión
+  independiente de esta versión): un guardado de posición diferido podía
+  llegar después de apagar el escritor en `onDestroy` y lanzar
+  `RejectedExecutionException` en el hilo principal, que mata el proceso.
+  El escritor ahora descarta con log esas escrituras tardías, `flush` espera
+  la cola ya apagada y `onDestroy` cancela el debounce y apaga el escritor
+  antes de desmontar el WebView.
+- **«Resaltar»/«Nota» fallaban en todos los capítulos salvo el primero**
+  (reportado por el usuario en 1.4.2, con el toast «No se pudo capturar la
+  selección»): `window.HL` se inyectaba una sola vez por sesión, pero cada
+  render crea un documento nuevo en el WebView, así que desde el segundo
+  render toda captura devolvía null. El latch se reinicia en `onPageStarted`
+  y el JS se re-inyecta en cada carga (verificado en emulador: renders
+  seguidos con `typeof window.HL === "object"` tras el fix; antes,
+  `"undefined"` desde el render #2). Además, la selección se lee ahora
+  **antes** de cerrar el ActionMode y **antes** de abrir el diálogo de nota,
+  para que esas acciones no descarten la selección pendiente de capturar.
+- **Crash «connection pool has been closed» al abrir un libro** (detectado en
+  la verificación de esta versión): `BookmarksDBHelper` cerraba la base de
+  datos al final de **cada** método; con los guardados de posición pasados a
+  segundo plano, ese cierre destruía la conexión compartida mientras el hilo
+  principal seguía consultando (menú del lector → `hasBookmark`). Ahora la
+  conexión la posee el helper y se cierra una sola vez al destruir la
+  actividad; de paso se elimina la reapertura de la base en cada consulta.
+
+### Técnico
+
+- Nuevas clases puras Java con tests unitarios: `ExtractionCache`,
+  `SizeLruCache` y `SerialWriter`. 92 ejecuciones de tests (46 × 2 variantes)
+  en verde y `lintRelease` con 0 errores (128 avisos preexistentes, ninguno
+  en los archivos nuevos).
+- Diagnóstico logcat de anotaciones: estado de `window.HL` por render,
+  inyección del menú y resultado de cada captura.
+- `versionCode` 9 / `versionName` 1.4.3.
+
 ## [1.4.2] — 2026-10-20
 
 ### Añadido
