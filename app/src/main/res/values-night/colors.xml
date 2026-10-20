@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme overrides -->
+    <color name="primary">#1565C0</color>
+    <color name="primary_dark">#0D47A1</color>
+    <color name="primary_light">#1E88E5</color>
+    <color name="primary_variant">#42A5F5</color>
+
+    <color name="surface">#1A1A1A</color>
+    <color name="surface_variant">#2D2D2D</color>
+    <color name="background">#1A1A1A</color>
+    <color name="on_surface">#E0E0E0</color>
+    <color name="on_background">#E0E0E0</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <color name="error">#CF6679</color>
+    <color name="success">#4CAF50</color>
+    <color name="accent">#FFA726</color>
+
+    <color name="read_bg">#1A1A1A</color>
+    <color name="read_fg">#E0E0E0</color>
+    <color name="sepia_bg">#2C2622</color>
+    <color name="sepia_fg">#D7C4A8</color>
+</resources>

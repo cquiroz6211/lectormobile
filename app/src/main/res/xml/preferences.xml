@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="Lectura">
+
+        <ListPreference
+            android:key="font_size"
+            android:title="@string/font_size"
+            android:summary="18px"
+            android:dialogTitle="@string/font_size"
+            android:entries="@array/font_size_entries"
+            android:entryValues="@array/font_size_values"
+            android:defaultValue="18" />
+
+        <SwitchPreferenceCompat
+            android:key="dark_mode"
+            android:title="@string/dark_mode"
+            android:defaultValue="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Acerca de">
+
+        <Preference
+            android:key="about"
+            android:title="@string/about"
+            app:summary="LectorMobile v1.0" />
+
+        <Preference
+            android:key="app_version"
+            android:title="@string/app_version"
+            android:summary="1.0"
+            android:selectable="false" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

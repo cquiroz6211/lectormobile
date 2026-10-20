@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Custom attributes -->
+    <attr name="pdfBackground" format="color" />
+    <attr name="colorBackground" format="color" />
+</resources>

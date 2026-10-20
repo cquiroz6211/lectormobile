@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+local.properties/
+build/
+app/build/
+app/proguard-rules.pro
+
+# Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+.cobertura/
+*.kts
+
+# Keystore (do not commit!)
+*.keystore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# APK files
+*.apk
+
+# Build tools
+app/build/outputs/
+app/build/intermediates/
+app/build/tmp/
+app/.gradle/

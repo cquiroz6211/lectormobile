@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="font_size_entries">
+        <item>12px</item>
+        <item>14px</item>
+        <item>16px</item>
+        <item>18px</item>
+        <item>20px</item>
+        <item>22px</item>
+        <item>24px</item>
+        <item>26px</item>
+        <item>28px</item>
+        <item>30px</item>
+        <item>32px</item>
+    </string-array>
+
+    <string-array name="font_size_values">
+        <item>12</item>
+        <item>14</item>
+        <item>16</item>
+        <item>18</item>
+        <item>20</item>
+        <item>22</item>
+        <item>24</item>
+        <item>26</item>
+        <item>28</item>
+        <item>30</item>
+        <item>32</item>
+    </string-array>
+</resources>

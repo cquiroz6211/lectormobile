@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/menuBookmark"
+        android:icon="@drawable/ic_bookmark_border"
+        android:title="@string/action_bookmark"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/menuFontSizeDown"
+        android:icon="@android:drawable/ic_menu_zoom"
+        android:title="@string/font_size"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menuFontSizeUp"
+        android:icon="@android:drawable/ic_menu_zoom"
+        android:title="@string/font_size"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menuDarkMode"
+        android:title="@string/dark_mode"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/menuSettings"
+        android:title="@string/action_settings"
+        app:showAsAction="never" />
+</menu>

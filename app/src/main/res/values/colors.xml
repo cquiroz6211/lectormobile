@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#FF000000</color>
+
+    <!-- Material Colors -->
+    <color name="primary">#1565C0</color>
+    <color name="primary_dark">#0D47A1</color>
+    <color name="primary_light">#1E88E5</color>
+    <color name="primary_variant">#42A5F5</color>
+
+    <!-- Surface colors -->
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_variant">#F5F5F5</color>
+    <color name="background">#FFFFFF</color>
+
+    <!-- Text colors -->
+    <color name="on_surface">#212121</color>
+    <color name="on_background">#212121</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- UI colors -->
+    <color name="border">#E0E0E0</color>
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_hint">#9E9E9E</color>
+
+    <!-- Status colors -->
+    <color name="error">#CF6679</color>
+    <color name="success">#4CAF50</color>
+    <color name="accent">#FFA726</color>
+    <color name="red">#FF0000</color>
+
+    <!-- Reader colors -->
+    <color name="read_bg">#FFFFFF</color>
+    <color name="read_fg">#212121</color>
+    <color name="sepia_bg">#F4E8D1</color>
+    <color name="sepia_fg">#5C4B37</color>
+</resources>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- menu_reader.xml – Reader screen options menu -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/menu_bookmark_page"
+        android:title="@string/action_bookmark_page"
+        android:icon="@drawable/ic_bookmark_outline"
+        app:showAsAction="ifRoom"/>
+
+    <item
+        android:id="@+id/menu_font_size"
+        android:title="@string/action_font_size"
+        android:icon="@drawable/ic_page"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/menu_theme"
+        android:title="@string/action_theme"
+        android:icon="@drawable/ic_settings"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/menu_share"
+        android:title="@string/action_share"
+        android:icon="@drawable/ic_share"
+        app:showAsAction="never"/>
+
+    <item
+        android:id="@+id/menu_about"
+        android:title="@string/action_about"
+        android:icon="@drawable/ic_info"
+        app:showAsAction="never"/>
+</menu>
