@@ -37,13 +37,13 @@ Evolución del lector solicitada por el usuario:
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | S1 | `BookPageEstimator` (test-first JUnit) + cálculo de páginas | verified (`BookPageEstimatorTest` verde) |
-| T2 | S2 | CSS multi-columna + JS bridge paginación (tap zones, swipe, límites de capítulo) | verified (emulador: taps der/izq y swipe) |
-| T3 | S3 | Indicador de páginas en visor y diálogo de salto «Ir a…» adaptado a páginas globales | verified (emulador: «Pág. 1 / 1 · Cap. 1 / 3» y diálogo «Ir a página») |
-| T4 | S4 | Preferencia de navegación en `SettingsActivity` y menú del lector (paginado vs continuo) | verified (`NavigationModeTest` verde + selector en Settings y menú) |
-| T5 | S5 | Paginación horizontal con page snap en PDF (`ReaderActivity`) | verified (emulador: swipe horizontal página 1 -> 2 -> 3 en PDF) |
-| T6 | S1-S5 | Docs (CHANGELOG, BACKLOG, README) y version bump a v1.5.0 (versionCode 10) | verified |
-| T7 | S1-S5 | Verificación completa: `test`, `lintRelease`, APK firmado e instalación | verified (APK v1.5.0 firmado e instalado en emulador API 37) |
+| T1 | S1 | `BookPageEstimator` (test-first JUnit) + cálculo de páginas | `5792b72` |
+| T2 | S2 | CSS multi-columna + JS bridge paginación (tap zones, swipe, límites de capítulo) | `5792b72` |
+| T3 | S3 | Indicador de páginas en visor y diálogo de salto «Ir a…» adaptado a páginas globales | `5792b72` |
+| T4 | S4 | Preferencia de navegación en `SettingsActivity` y menú del lector (paginado vs continuo) | `5792b72` |
+| T5 | S5 | Paginación horizontal con page snap en PDF (`ReaderActivity`) | `5792b72` |
+| T6 | S1-S5 | Docs (CHANGELOG, BACKLOG, README) y version bump a v1.5.0 (versionCode 10) | `5792b72` |
+| T7 | S1-S5 | Verificación completa: `test`, `lintRelease`, APK firmado e instalación | `5792b72` |
 
 ## Log
 
