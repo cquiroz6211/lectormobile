@@ -26,11 +26,11 @@ Optimización de comportamiento en segundo plano solicitada por el usuario:
 
 | ID | Specs | Route | Commit |
 |----|-------|-------|--------|
-| T1 | S1 | `webView.onPause()` y `webView.onResume()` en `ReaderActivity` | pending |
-| T2 | S2 | `clearCoverCache()` en `BooksAdapter` + `onTrimMemory` en `MainActivity` | pending |
-| T3 | S3 | `destroy()` en `BooksAdapter` + `onDestroy()` en `MainActivity` | pending |
-| T4 | S4 | `onSaveInstanceState` y restauración prioritaria en `ReaderActivity` | pending |
-| T5 | S5 | Docs (CHANGELOG, BACKLOG, README), version bump v1.5.1 (versionCode 11) y verificación | pending |
+| T1 | S1 | `webView.onPause()` y `webView.onResume()` en `ReaderActivity` | `c7c22b9` |
+| T2 | S2 | `clearCoverCache()` en `BooksAdapter` + `onTrimMemory` en `MainActivity` | `c7c22b9` |
+| T3 | S3 | `destroy()` en `BooksAdapter` + `onDestroy()` en `MainActivity` | `c7c22b9` |
+| T4 | S4 | `onSaveInstanceState` y restauración prioritaria en `ReaderActivity` | `c7c22b9` |
+| T5 | S5 | Docs (CHANGELOG, BACKLOG, README), version bump v1.5.1 (versionCode 11) y verificación | `c7c22b9` |
 
 ## Log
 
