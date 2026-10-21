@@ -1,5 +1,26 @@
 # Changelog — LectorMobile
 
+## [1.5.1] — 2026-10-20
+
+### Optimizado
+
+- **Pausa real de WebView en segundo plano**: `ReaderActivity.onPause()` invoca
+  ahora `webView.onPause()` junto a `pauseTimers()`, congelando el motor de
+  renderizado de Chromium, GPU compositor y animaciones CSS mientras la app
+  está en segundo plano (ahorro de batería y CPU); se reanuda ordenadamente en
+  `onResume()`.
+- **Desalojo de memoria ante presión del sistema (`onTrimMemory`)**: `MainActivity`
+  implementa `onTrimMemory`: cuando la UI pasa a segundo plano
+  (`TRIM_MEMORY_UI_HIDDEN`) o hay escasez de memoria, se vacía el caché LRU de
+  portadas en RAM de `BooksAdapter` (`clearCoverCache()`), liberando hasta 8 MB
+  de heap al sistema operativo para evitar la terminación forzada por el LMK.
+- **Cierre prolijo de pools de hilos y SQLite**: `BooksAdapter` implementa
+  `destroy()` para apagar su `coverExecutor`, y `MainActivity.onDestroy()`
+  cierra ordenadamente el pool de hilos y la conexión `dbHelper`.
+- **Restauración robusta ante muerte de proceso**: `ReaderActivity` implementa
+  `onSaveInstanceState` y prioriza el estado fresco guardado sobre los extras
+  antiguos de `getIntent()` al recrearse la actividad tras presión de memoria.
+
 ## [1.5.0] — 2026-10-20
 
 ### Añadido

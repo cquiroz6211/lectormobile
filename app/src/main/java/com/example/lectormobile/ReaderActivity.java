@@ -192,9 +192,17 @@ public class ReaderActivity extends AppCompatActivity {
         fontSize = prefs.getInt("font_size", 18);
         if (fontSize < 12 || fontSize > 28) fontSize = 18;
 
-        // Get book path from intent
-        bookPath = getIntent().getStringExtra("bookPath");
-        initialPosition = getIntent().getStringExtra("position");
+        // Get book path from saved state or intent (spec S4)
+        if (savedInstanceState != null) {
+            bookPath = savedInstanceState.getString("saved_book_path");
+            initialPosition = savedInstanceState.getString("saved_position");
+        }
+        if (bookPath == null) {
+            bookPath = getIntent().getStringExtra("bookPath");
+        }
+        if (initialPosition == null) {
+            initialPosition = getIntent().getStringExtra("position");
+        }
         jumpAnnotationId = getIntent().getLongExtra("annotationId", -1);
         Uri dataUri = getIntent().getData();
 
@@ -1495,9 +1503,21 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Spec S4: persist active reading state across process death
+        outState.putString("saved_book_path", bookPath);
+        outState.putInt("saved_current_page", currentPage);
+        outState.putInt("saved_chapter_index", currentChapterIndex);
+        outState.putFloat("saved_scroll_fraction", currentScrollFraction);
+        outState.putString("saved_position", currentPositionValue());
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         if (webView != null) {
+            webView.onPause();
             webView.pauseTimers();
         }
         // PDF v2.0.2 doesn't have onPause() - use invalidate() if needed
@@ -1514,6 +1534,7 @@ public class ReaderActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (webView != null) {
+            webView.onResume();
             webView.resumeTimers();
         }
         // PDF v2.0.2 doesn't have onResume()

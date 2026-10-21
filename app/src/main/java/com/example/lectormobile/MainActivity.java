@@ -214,6 +214,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // Spec S2: release in-memory cover bitmaps when UI is hidden or memory is low
+        if (level >= TRIM_MEMORY_UI_HIDDEN && booksAdapter != null) {
+            booksAdapter.clearCoverCache();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Spec S3: cleanly shut down thread pools and close SQLite connection
+        if (booksAdapter != null) {
+            booksAdapter.destroy();
+        }
+        if (dbHelper != null) {
+            dbHelper.close();
+        }
+        super.onDestroy();
+    }
+
+    @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleSharedIntent(intent);

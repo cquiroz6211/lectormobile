@@ -98,4 +98,19 @@ public class SizeLruCacheTest {
     public void nonPositiveBudgetIsRejected() {
         new SizeLruCache<String, int[]>(0, v -> v[0]);
     }
+
+    @Test
+    public void evictAllClearsCache() {
+        SizeLruCache<String, int[]> cache = newCache(100);
+        cache.put("a", new int[]{20});
+        cache.put("b", new int[]{30});
+        assertEquals(50, cache.size());
+        assertEquals(2, cache.count());
+
+        cache.evictAll();
+        assertEquals(0, cache.size());
+        assertEquals(0, cache.count());
+        assertNull(cache.get("a"));
+        assertNull(cache.get("b"));
+    }
 }

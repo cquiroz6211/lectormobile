@@ -2,15 +2,17 @@
 
 ## Estado actual (2026-10-20)
 
-**Versión 1.5.0 (versionCode 10)** — Modo lectura paginado horizontal y conteo
-estándar de páginas del libro:
-- Paginación horizontal EPUB por CSS multi-columna con paso de página por tap
-  en bordes y swipe táctil, más transición automática entre capítulos.
-- Conteo y estimación estándar de páginas (`BookPageEstimator`, 1.024 caracteres
-  por página, estándar Adobe/EPUB) y salto rápido adaptado a páginas globales.
-- Paginación horizontal con page snap en PDF.
-- Selector de modo de navegación (Paginado horizontal vs Scroll continuo) en
-  Ajustes y menú del lector.
+**Versión 1.5.1 (versionCode 11)** — Optimización de ciclo de vida y segundo plano:
+- Pausa real del WebView (`webView.onPause()`/`onResume()`) congelando Chromium,
+  GPU y animaciones en background.
+- `onTrimMemory` en `MainActivity` para desalojar hasta 8 MB de bitmaps de
+  portada ante `TRIM_MEMORY_UI_HIDDEN` y presión de RAM.
+- Cierre ordenado de hilos (`coverExecutor.shutdownNow()`) y `dbHelper.close()`
+  en `MainActivity.onDestroy()`.
+- Persistencia robusta ante muerte de proceso vía `onSaveInstanceState` en
+  `ReaderActivity`.
+La 1.5.0 (versionCode 10) trajo modo lectura paginado horizontal y conteo
+estándar de páginas del libro (`BookPageEstimator`).
 La 1.4.3 (versionCode 9) trajo optimización de rendimiento: extracción de
 EPUB cacheada, portadas en caché LRU 8 MB y escritura SQLite en hilo FIFO.
 La 1.4.2 (versionCode 8) trajo modo lectura inmersivo, tema sepia/cálido y
