@@ -82,6 +82,12 @@ public class SizeLruCache<K, V> {
         return map.size();
     }
 
+    /** Evicts all entries and resets the current size to zero. */
+    public synchronized void evictAll() {
+        map.clear();
+        currentSize = 0;
+    }
+
     private void trimToSize() {
         Iterator<Map.Entry<K, V>> it = map.entrySet().iterator();
         while (currentSize > maxSize && it.hasNext()) {

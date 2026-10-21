@@ -114,6 +114,12 @@
     <string name="action_annotations">Notas y subrayados</string>
     <string name="item_annotation_delete_desc">Eliminar anotación</string>
 
+    <!-- Navigation Mode (v1.5.0) -->
+    <string name="navigation_mode">Modo de lectura</string>
+    <string name="settings_navigation_mode">Modo de lectura</string>
+    <string name="nav_mode_paginated">Paginado (por páginas)</string>
+    <string name="nav_mode_continuous">Scroll continuo</string>
+
     <!-- Reading Themes (v1.5.0) -->
     <string name="reading_theme">Tema de lectura</string>
     <string name="settings_reading_theme">Tema de lectura</string>

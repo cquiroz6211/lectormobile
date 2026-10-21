@@ -42,7 +42,11 @@ public class UriFileCopier {
 
             File destFile = uniqueFile(booksDir, fileName);
 
-            in = context.getContentResolver().openInputStream(uri);
+            if ("file".equalsIgnoreCase(uri.getScheme()) && uri.getPath() != null) {
+                in = new java.io.FileInputStream(new File(uri.getPath()));
+            } else {
+                in = context.getContentResolver().openInputStream(uri);
+            }
             if (in == null) return null;
             out = new FileOutputStream(destFile);
 

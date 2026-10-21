@@ -65,6 +65,22 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.BookViewHold
         this.coverStore = store;
     }
 
+    /**
+     * Clear the in-memory cover bitmap cache (e.g. onTrimMemory, spec S2).
+     */
+    public void clearCoverCache() {
+        coverCache.evictAll();
+        coverAttempted.clear();
+    }
+
+    /**
+     * Shutdown the background cover executor (e.g. onDestroy, spec S3).
+     */
+    public void destroy() {
+        clearCoverCache();
+        coverExecutor.shutdownNow();
+    }
+
     @NonNull
     @Override
     public BookViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
