@@ -1,5 +1,32 @@
 # Changelog — LectorMobile
 
+## [1.5.0] — 2026-10-20
+
+### Añadido
+
+- **Modo paginado horizontal para EPUB**: lectura estilo libro físico con layout CSS
+  multi-columna (`column-width: 100vw; height: 100vh; overflow: hidden;`).
+  - Navegación natural por tap: tap en tercio derecho para avanzar página, tap en tercio
+    izquierdo para retroceder página, tap central para alternar controles inmersivos.
+  - Navegación por swipe táctil horizontal suave con prevención de falsos clics.
+  - Conexión continua entre capítulos: al pasar de la última página del capítulo actual
+    avanza al siguiente capítulo (página 0); al retroceder desde la primera página cae en
+    la última página del capítulo anterior.
+- **Conteo y estimación estándar de páginas del libro**:
+  - Nueva clase `BookPageEstimator` basada en el estándar de la industria (1.024 caracteres
+    limpios por página sintética, compatible con Adobe Digital Editions / EPUB spec).
+  - Cálculo de páginas en segundo plano sin demorar la apertura del libro.
+  - Indicador de lectura enriquecido en el visor (`tvProgress`): muestra las páginas del
+    capítulo actual y la página global del libro (`Pág. X / Y · Libro: A / B · Z%`).
+  - Salto numérico («Ir a…») adaptado a páginas globales del libro (1 a total de páginas).
+- **Selector de modo de navegación (Ajustes y Menú del Lector)**:
+  - Nueva preferencia persistente `navigation_mode` administrada por `NavigationMode`:
+    permite alternar entre «Paginado (por páginas)» (por defecto) y «Scroll continuo».
+  - Selector disponible tanto en la pantalla de Ajustes como en el menú del lector.
+- **Paginación horizontal en PDF**:
+  - En modo paginado, el visor de PDF activa desplazamiento horizontal con `pageSnap(true)`,
+    `autoSpacing(true)` y `pageFling(true)` para pasar hoja por hoja de forma idéntica a EPUB.
+
 ## [1.4.3] — 2026-10-20
 
 ### Añadido

@@ -2,9 +2,17 @@
 
 ## Estado actual (2026-10-20)
 
-**Versión 1.4.3 (versionCode 9)** — Optimización de rendimiento: extracción de
-EPUB cacheada (sin re-descomprimir en cada apertura), portadas en caché de
-memoria (LRU 8 MB) y escritura de posiciones fuera del hilo principal.
+**Versión 1.5.0 (versionCode 10)** — Modo lectura paginado horizontal y conteo
+estándar de páginas del libro:
+- Paginación horizontal EPUB por CSS multi-columna con paso de página por tap
+  en bordes y swipe táctil, más transición automática entre capítulos.
+- Conteo y estimación estándar de páginas (`BookPageEstimator`, 1.024 caracteres
+  por página, estándar Adobe/EPUB) y salto rápido adaptado a páginas globales.
+- Paginación horizontal con page snap en PDF.
+- Selector de modo de navegación (Paginado horizontal vs Scroll continuo) en
+  Ajustes y menú del lector.
+La 1.4.3 (versionCode 9) trajo optimización de rendimiento: extracción de
+EPUB cacheada, portadas en caché LRU 8 MB y escritura SQLite en hilo FIFO.
 La 1.4.2 (versionCode 8) trajo modo lectura inmersivo, tema sepia/cálido y
 salto rápido a página/capítulo.
 La 1.4.1 (versionCode 7) corrigió la inyección de acciones de selección en ActionModes primarios.

@@ -34,6 +34,10 @@
         android:title="@string/reading_theme"
         app:showAsAction="never" />
     <item
+        android:id="@+id/menuNavigationMode"
+        android:title="@string/navigation_mode"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/menuSettings"
         android:title="@string/action_settings"
         app:showAsAction="never" />

@@ -86,6 +86,31 @@
 
                     </LinearLayout>
 
+                    <!-- Navigation Mode Preference (v1.5.0) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/settings_navigation_mode"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp" />
+
+                        <Spinner
+                            android:id="@+id/settings_spinner_navigation_mode"
+                            android:layout_width="160dp"
+                            android:layout_height="48dp"
+                            android:background="@drawable/bg_spinner"
+                            android:popupBackground="@color/surface" />
+
+                    </LinearLayout>
+
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>

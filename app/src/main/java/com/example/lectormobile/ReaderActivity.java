@@ -121,13 +121,28 @@ public class ReaderActivity extends AppCompatActivity {
         + "}catch(e){return null;}},"
         + "clear:function(){window.getSelection().removeAllRanges();},"
         + "jump:function(id){var el=document.querySelector('[data-id=\"'+id+'\"]');"
-        + "if(el){el.scrollIntoView({block:'center'});return true;}return false;}"
+        + "if(!el)return false;"
+        + "if(window.LectorPaginator&&window.LectorPaginator.isPaginated){"
+        + "  var rect=el.getBoundingClientRect();"
+        + "  var cur=window.scrollX||window.pageXOffset||0;"
+        + "  var p=Math.floor((rect.left+cur)/window.LectorPaginator.getPageWidth());"
+        + "  window.LectorPaginator.goToPage(p,true);"
+        + "  return true;"
+        + "}else{"
+        + "  el.scrollIntoView({block:'center'});return true;"
+        + "}}"
         + "};'ok'";
 
     // PDF state
     private int currentPage = 0;
     private int totalPages = 0;
     private int pdfPagesForProgress = 0;
+
+    // Navigation & pagination state (v1.5.0)
+    private String currentNavigationMode = NavigationMode.MODE_PAGINATED;
+    private BookPageEstimator pageEstimator;
+    private int currentScreenPage = 0;
+    private int totalScreenPages = 1;
 
     // UI state
     private String currentTheme = ReadingTheme.THEME_DARK;
@@ -173,6 +188,7 @@ public class ReaderActivity extends AppCompatActivity {
         // Restore settings
         currentTheme = ReadingTheme.getTheme(prefs);
         isDarkMode = ReadingTheme.isDarkMode(currentTheme);
+        currentNavigationMode = NavigationMode.getMode(prefs);
         fontSize = prefs.getInt("font_size", 18);
         if (fontSize < 12 || fontSize > 28) fontSize = 18;
 
@@ -262,11 +278,15 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private void loadPdfDocument(int startPage) {
         boolean isDark = ReadingTheme.isDarkMode(currentTheme);
+        boolean isPaginated = NavigationMode.isPaginated(currentNavigationMode);
         pdfView.fromFile(bookFile)
                 .defaultPage(startPage)
                 .nightMode(isDark)
                 .enableSwipe(true)
-                .swipeHorizontal(false)
+                .swipeHorizontal(isPaginated)
+                .pageSnap(isPaginated)
+                .autoSpacing(isPaginated)
+                .pageFling(isPaginated)
                 .enableDoubletap(true)
                 .onTap(e -> {
                     toggleControls();
@@ -300,7 +320,9 @@ public class ReaderActivity extends AppCompatActivity {
 
         // Exact position (spec S1): restore after the chapter finishes loading
         // and keep the saved fraction fresh while the user scrolls.
-        webView.addJavascriptInterface(new AnnotationBridge(), "LectorAnnotations");
+        AnnotationBridge bridge = new AnnotationBridge();
+        webView.addJavascriptInterface(bridge, "LectorAnnotations");
+        webView.addJavascriptInterface(bridge, "LectorBridge");
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(android.webkit.WebView view, String url,
@@ -316,6 +338,12 @@ public class ReaderActivity extends AppCompatActivity {
 
             @Override
             public void onPageFinished(android.webkit.WebView view, String url) {
+                if (NavigationMode.isPaginated(currentNavigationMode)) {
+                    float frac = pendingRestoreFraction >= 0 ? pendingRestoreFraction : 0f;
+                    view.evaluateJavascript(
+                            "if (window.LectorPaginator) { window.LectorPaginator.init(" + frac + "); }",
+                            null);
+                }
                 applyPendingRestore();
                 applyAnnotations();
             }
@@ -372,7 +400,12 @@ public class ReaderActivity extends AppCompatActivity {
                 // Table of contents (used for chapter titles and navigation)
                 tocEntries = EPUBParser.extractTOC(epubExtractDir, contentDirPath);
 
+                // Estimate standard pages across all chapters (spec S1)
+                final BookPageEstimator estimator = (epubChapters != null && !epubChapters.isEmpty())
+                        ? BookPageEstimator.fromChapterFiles(epubChapters) : null;
+
                 runOnUiThread(() -> {
+                    pageEstimator = estimator;
                     if (epubChapters == null || epubChapters.isEmpty()) {
                         Toast.makeText(ReaderActivity.this,
                                 "EPUB sin contenido válido",
@@ -478,21 +511,11 @@ public class ReaderActivity extends AppCompatActivity {
         final String finalBaseUrl = baseUrl;
         runOnUiThread(() -> {
             String css = getCSS();
-            String clickScript = "<script>"
-                    + "document.addEventListener('click', function(e) {"
-                    + "  var el = (e.target && e.target.nodeType === 3) ? e.target.parentElement : e.target;"
-                    + "  if (el && el.closest && (el.closest('a') || el.closest('.hl-note'))) return;"
-                    + "  var sel = window.getSelection ? window.getSelection() : null;"
-                    + "  if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;"
-                    + "  if (window.LectorAnnotations && window.LectorAnnotations.onContentTapped) {"
-                    + "    window.LectorAnnotations.onContentTapped();"
-                    + "  }"
-                    + "});"
-                    + "</script>";
+            String navScript = getNavigationScript();
 
             String fullHTML = "<html><head>"
                     + "<meta name='viewport' content='width=device-width, "
-                    + "initial-scale=1.0'>" + css + clickScript + "</head>"
+                    + "initial-scale=1.0'>" + css + navScript + "</head>"
                     + "<body>" + finalContent + "</body></html>";
 
             webView.loadDataWithBaseURL(finalBaseUrl,
@@ -537,6 +560,26 @@ public class ReaderActivity extends AppCompatActivity {
                 break;
         }
 
+        boolean isPaginated = NavigationMode.isPaginated(currentNavigationMode);
+        if (isPaginated) {
+            return "<style>"
+                    + "html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }"
+                    + "body { background: " + bg + "; color: " + color + "; "
+                    + "font-family: 'Segoe UI', sans-serif; line-height: 1.7; "
+                    + "padding: 24px 20px; font-size: " + fontSize + "px; "
+                    + "box-sizing: border-box; width: 100vw; height: 100vh; "
+                    + "column-width: 100vw; column-gap: 0px; column-fill: auto; "
+                    + "overflow-x: hidden; overflow-y: hidden; }"
+                    + "a { color: " + link + "; } "
+                    + "img, svg, video, audio { max-width: 100%; max-height: 80vh; height: auto; object-fit: contain; break-inside: avoid; page-break-inside: avoid; } "
+                    + "h1, h2, h3, h4, h5, h6 { color: " + headings + "; break-inside: avoid; page-break-after: avoid; } "
+                    + "p { orphans: 2; widows: 2; } "
+                    + ".hl { background-color: rgba(255,214,0,0.55); border-radius: 2px; } "
+                    + ".hl-note { background-color: rgba(255,214,0,0.55); "
+                    + "border-bottom: 2px dotted #c8a600; border-radius: 2px; } "
+                    + "</style>";
+        }
+
         return "<style>body { background: " + bg + "; color: " + color + "; "
                 + "font-family: 'Segoe UI', sans-serif; line-height: 1.8; "
                 + "padding: 16px; font-size: " + fontSize + "px; } "
@@ -546,6 +589,143 @@ public class ReaderActivity extends AppCompatActivity {
                 + ".hl-note { background-color: rgba(255,214,0,0.55); "
                 + "border-bottom: 2px dotted #c8a600; border-radius: 2px; } "
                 + "</style>";
+    }
+
+    /**
+     * Script for page navigation (horizontal columns, tap zones, swipe) and immersive toggle.
+     */
+    private String getNavigationScript() {
+        boolean paginated = NavigationMode.isPaginated(currentNavigationMode);
+        return "<script>\n"
+                + "(function() {\n"
+                + "  var isPaginated = " + paginated + ";\n"
+                + "  var page = 0;\n"
+                + "  var totalPages = 1;\n"
+                + "  var pageWidth = window.innerWidth || document.documentElement.clientWidth || 360;\n"
+                + "  var startX = 0, startY = 0, startTime = 0;\n"
+                + "  var hasJustSwiped = false;\n"
+                + "\n"
+                + "  function getBridge() {\n"
+                + "    return window.LectorBridge || window.LectorAnnotations || null;\n"
+                + "  }\n"
+                + "\n"
+                + "  function getPageWidth() {\n"
+                + "    return window.innerWidth || document.documentElement.clientWidth || 360;\n"
+                + "  }\n"
+                + "\n"
+                + "  function updateMetrics() {\n"
+                + "    pageWidth = getPageWidth();\n"
+                + "    var scrollW = document.documentElement.scrollWidth || document.body.scrollWidth || pageWidth;\n"
+                + "    totalPages = Math.max(1, Math.ceil(scrollW / pageWidth));\n"
+                + "    var bridge = getBridge();\n"
+                + "    if (bridge && bridge.onPageMetrics) {\n"
+                + "      bridge.onPageMetrics(page, totalPages);\n"
+                + "    }\n"
+                + "  }\n"
+                + "\n"
+                + "  function goToPage(p, notify) {\n"
+                + "    if (p < 0) p = 0;\n"
+                + "    if (p >= totalPages) p = totalPages - 1;\n"
+                + "    page = p;\n"
+                + "    var targetLeft = page * pageWidth;\n"
+                + "    window.scrollTo(targetLeft, 0);\n"
+                + "    var bridge = getBridge();\n"
+                + "    if (notify !== false && bridge && bridge.onPageChanged) {\n"
+                + "      bridge.onPageChanged(page, totalPages);\n"
+                + "    }\n"
+                + "  }\n"
+                + "\n"
+                + "  window.LectorPaginator = {\n"
+                + "    isPaginated: isPaginated,\n"
+                + "    init: function(restoreFraction) {\n"
+                + "      updateMetrics();\n"
+                + "      if (typeof restoreFraction === 'number' && restoreFraction >= 0) {\n"
+                + "        var target = Math.min(totalPages - 1, Math.round(restoreFraction * (totalPages - 1)));\n"
+                + "        goToPage(target, false);\n"
+                + "      }\n"
+                + "    },\n"
+                + "    getPage: function() { return page; },\n"
+                + "    getTotalPages: function() { return totalPages; },\n"
+                + "    getPageWidth: getPageWidth,\n"
+                + "    goToPage: goToPage,\n"
+                + "    nextPage: function() {\n"
+                + "      if (page < totalPages - 1) {\n"
+                + "        goToPage(page + 1, true);\n"
+                + "      } else {\n"
+                + "        var b = getBridge();\n"
+                + "        if (b && b.onChapterEndReached) b.onChapterEndReached();\n"
+                + "      }\n"
+                + "    },\n"
+                + "    prevPage: function() {\n"
+                + "      if (page > 0) {\n"
+                + "        goToPage(page - 1, true);\n"
+                + "      } else {\n"
+                + "        var b = getBridge();\n"
+                + "        if (b && b.onChapterStartReached) b.onChapterStartReached();\n"
+                + "      }\n"
+                + "    }\n"
+                + "  };\n"
+                + "\n"
+                + "  window.addEventListener('load', function() {\n"
+                + "    if (isPaginated) setTimeout(updateMetrics, 60);\n"
+                + "  });\n"
+                + "  window.addEventListener('resize', function() {\n"
+                + "    if (isPaginated) { updateMetrics(); goToPage(page, false); }\n"
+                + "  });\n"
+                + "\n"
+                + "  document.addEventListener('touchstart', function(e) {\n"
+                + "    if (!isPaginated) return;\n"
+                + "    if (e.touches && e.touches.length === 1) {\n"
+                + "      startX = e.touches[0].clientX;\n"
+                + "      startY = e.touches[0].clientY;\n"
+                + "      startTime = Date.now();\n"
+                + "    }\n"
+                + "  }, {passive: true});\n"
+                + "\n"
+                + "  document.addEventListener('touchend', function(e) {\n"
+                + "    if (!isPaginated) return;\n"
+                + "    if (!e.changedTouches || e.changedTouches.length === 0) return;\n"
+                + "    var dx = e.changedTouches[0].clientX - startX;\n"
+                + "    var dy = e.changedTouches[0].clientY - startY;\n"
+                + "    var dt = Date.now() - startTime;\n"
+                + "    if (Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 1.3 && dt < 600) {\n"
+                + "      hasJustSwiped = true;\n"
+                + "      setTimeout(function() { hasJustSwiped = false; }, 300);\n"
+                + "      if (dx < 0) {\n"
+                + "        window.LectorPaginator.nextPage();\n"
+                + "      } else {\n"
+                + "        window.LectorPaginator.prevPage();\n"
+                + "      }\n"
+                + "    }\n"
+                + "  }, {passive: true});\n"
+                + "\n"
+                + "  document.addEventListener('click', function(e) {\n"
+                + "    if (hasJustSwiped) return;\n"
+                + "    var el = (e.target && e.target.nodeType === 3) ? e.target.parentElement : e.target;\n"
+                + "    if (el && el.closest && (el.closest('a') || el.closest('.hl-note'))) return;\n"
+                + "    var sel = window.getSelection ? window.getSelection() : null;\n"
+                + "    if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;\n"
+                + "\n"
+                + "    if (!isPaginated) {\n"
+                + "      var b = getBridge();\n"
+                + "      if (b && b.onContentTapped) b.onContentTapped();\n"
+                + "      return;\n"
+                + "    }\n"
+                + "\n"
+                + "    var clientX = e.clientX || 0;\n"
+                + "    var w = getPageWidth();\n"
+                + "    var ratio = clientX / w;\n"
+                + "    if (ratio < 0.28) {\n"
+                + "      window.LectorPaginator.prevPage();\n"
+                + "    } else if (ratio > 0.72) {\n"
+                + "      window.LectorPaginator.nextPage();\n"
+                + "    } else {\n"
+                + "      var b = getBridge();\n"
+                + "      if (b && b.onContentTapped) b.onContentTapped();\n"
+                + "    }\n"
+                + "  });\n"
+                + "})();\n"
+                + "</script>";
     }
 
     /**
@@ -599,7 +779,19 @@ public class ReaderActivity extends AppCompatActivity {
         if (isPdf) {
             text = "Página " + (currentPage + 1) + " / " + totalPages;
         } else {
-            text = "Capítulo " + (currentChapterIndex + 1) + " / " + totalPages;
+            if (pageEstimator != null && pageEstimator.getTotalPages() >= 1) {
+                int bookPage = pageEstimator.getPageForPosition(currentChapterIndex, fraction);
+                int totalBookPages = pageEstimator.getTotalPages();
+                if (NavigationMode.isPaginated(currentNavigationMode) && totalScreenPages > 1) {
+                    text = "Pág. " + (currentScreenPage + 1) + " / " + totalScreenPages
+                            + " · Libro: " + bookPage + " / " + totalBookPages;
+                } else {
+                    text = "Página " + bookPage + " / " + totalBookPages
+                            + " · Cap. " + (currentChapterIndex + 1) + " / " + totalPages;
+                }
+            } else {
+                text = "Capítulo " + (currentChapterIndex + 1) + " / " + totalPages;
+            }
         }
         if (percent >= 0) {
             text += " · " + percent + "%";
@@ -621,6 +813,12 @@ public class ReaderActivity extends AppCompatActivity {
      */
     private float computeScrollFraction() {
         if (isPdf || webView == null) return 0f;
+        if (NavigationMode.isPaginated(currentNavigationMode)) {
+            if (totalScreenPages > 1) {
+                return Math.max(0f, Math.min(1f, (float) currentScreenPage / (totalScreenPages - 1)));
+            }
+            return 0f;
+        }
         int scrollable = scrollableHeight();
         if (scrollable <= 0) return 0f;
         float fraction = (float) webView.getScrollY() / scrollable;
@@ -675,7 +873,18 @@ public class ReaderActivity extends AppCompatActivity {
         pendingRestoreFraction = -1f;
         restoreInFlight = true;
         currentScrollFraction = fraction;
-        scrollToFraction(fraction, 0, restoreGeneration);
+
+        boolean paginated = NavigationMode.isPaginated(currentNavigationMode);
+        if (paginated) {
+            restoreInFlight = false;
+            webView.evaluateJavascript(
+                    "if (window.LectorPaginator) { window.LectorPaginator.init(" + fraction + "); }",
+                    null);
+            refreshProgressLabel();
+            scheduleSavePosition();
+        } else {
+            scrollToFraction(fraction, 0, restoreGeneration);
+        }
     }
 
     /**
@@ -822,6 +1031,39 @@ public class ReaderActivity extends AppCompatActivity {
     }
 
     /**
+     * Show navigation mode selector dialog (Paginated vs Continuous, spec S4).
+     */
+    public void showNavigationModeDialog() {
+        CharSequence[] items = {
+                getString(R.string.nav_mode_paginated),
+                getString(R.string.nav_mode_continuous)
+        };
+        final String[] values = {
+                NavigationMode.MODE_PAGINATED,
+                NavigationMode.MODE_CONTINUOUS
+        };
+        int checkedItem = NavigationMode.MODE_CONTINUOUS.equals(currentNavigationMode) ? 1 : 0;
+
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.navigation_mode)
+                .setSingleChoiceItems(items, checkedItem, (dialog, which) -> {
+                    String selected = values[which];
+                    if (!selected.equals(currentNavigationMode)) {
+                        currentNavigationMode = selected;
+                        NavigationMode.setMode(prefs, selected);
+                        if (isPdf) {
+                            loadPdfDocument(currentPage);
+                        } else {
+                            renderChapter(currentChapterIndex);
+                        }
+                    }
+                    dialog.dismiss();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
      * Apply font size to EPUB content.
      */
     private void applyFontSize() {
@@ -941,37 +1183,81 @@ public class ReaderActivity extends AppCompatActivity {
                 Toast.makeText(this, "Capítulos no disponibles", Toast.LENGTH_SHORT).show();
                 return;
             }
-            int totalChapters = epubChapters.size();
-            final android.widget.EditText input = new android.widget.EditText(this);
-            input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-            input.setHint("1 - " + totalChapters);
-            input.setText(String.valueOf(currentChapterIndex + 1));
-            input.setSelectAllOnFocus(true);
-            input.setPadding(48, 32, 48, 32);
+            if (pageEstimator != null && pageEstimator.getTotalPages() >= 1) {
+                final int totalBookPages = pageEstimator.getTotalPages();
+                int currentBookPage = pageEstimator.getPageForPosition(
+                        currentChapterIndex, currentScrollFraction);
+                final android.widget.EditText input = new android.widget.EditText(this);
+                input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+                input.setHint("1 - " + totalBookPages);
+                input.setText(String.valueOf(currentBookPage));
+                input.setSelectAllOnFocus(true);
+                input.setPadding(48, 32, 48, 32);
 
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle(R.string.jump_to_chapter_title)
-                    .setView(input)
-                    .setPositiveButton(R.string.jump_action, (dialog, which) -> {
-                        String text = input.getText().toString().trim();
-                        if (text.isEmpty()) return;
-                        try {
-                            int chapter = Integer.parseInt(text);
-                            if (chapter < 1 || chapter > totalChapters) {
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle(R.string.jump_to_page_title)
+                        .setView(input)
+                        .setPositiveButton(R.string.jump_action, (dialog, which) -> {
+                            String text = input.getText().toString().trim();
+                            if (text.isEmpty()) return;
+                            try {
+                                int page = Integer.parseInt(text);
+                                if (page < 1 || page > totalBookPages) {
+                                    Toast.makeText(this,
+                                            getString(R.string.jump_to_invalid_page, totalBookPages),
+                                            Toast.LENGTH_SHORT).show();
+                                } else {
+                                    float[] pos = pageEstimator.getPositionForPage(page);
+                                    int targetChapter = (int) pos[0];
+                                    float targetFraction = pos[1];
+                                    if (targetChapter == currentChapterIndex) {
+                                        pendingRestoreFraction = targetFraction;
+                                        applyPendingRestore();
+                                    } else {
+                                        loadChapter(targetChapter, targetFraction);
+                                    }
+                                }
+                            } catch (NumberFormatException e) {
+                                Toast.makeText(this,
+                                        getString(R.string.jump_to_invalid_page, totalBookPages),
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            } else {
+                int totalChapters = epubChapters.size();
+                final android.widget.EditText input = new android.widget.EditText(this);
+                input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+                input.setHint("1 - " + totalChapters);
+                input.setText(String.valueOf(currentChapterIndex + 1));
+                input.setSelectAllOnFocus(true);
+                input.setPadding(48, 32, 48, 32);
+
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle(R.string.jump_to_chapter_title)
+                        .setView(input)
+                        .setPositiveButton(R.string.jump_action, (dialog, which) -> {
+                            String text = input.getText().toString().trim();
+                            if (text.isEmpty()) return;
+                            try {
+                                int chapter = Integer.parseInt(text);
+                                if (chapter < 1 || chapter > totalChapters) {
+                                    Toast.makeText(this,
+                                            getString(R.string.jump_to_invalid_chapter, totalChapters),
+                                            Toast.LENGTH_SHORT).show();
+                                } else {
+                                    loadChapter(chapter - 1);
+                                }
+                            } catch (NumberFormatException e) {
                                 Toast.makeText(this,
                                         getString(R.string.jump_to_invalid_chapter, totalChapters),
                                         Toast.LENGTH_SHORT).show();
-                            } else {
-                                loadChapter(chapter - 1);
                             }
-                        } catch (NumberFormatException e) {
-                            Toast.makeText(this,
-                                    getString(R.string.jump_to_invalid_chapter, totalChapters),
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    })
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show();
+                        })
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show();
+            }
         }
     }
 
@@ -979,6 +1265,15 @@ public class ReaderActivity extends AppCompatActivity {
      * Load an EPUB chapter by index.
      */
     public void loadChapter(int index) {
+        loadChapter(index, 0f);
+    }
+
+    /**
+     * Load an EPUB chapter by index and restore fraction (spec S2, S3).
+     */
+    public void loadChapter(int index, float fraction) {
+        pendingRestoreFraction = fraction;
+        currentScrollFraction = fraction;
         openChapter(index);
     }
 
@@ -1189,6 +1484,9 @@ public class ReaderActivity extends AppCompatActivity {
         } else if (id == R.id.menuTheme) {
             showThemeDialog();
             return true;
+        } else if (id == R.id.menuNavigationMode) {
+            showNavigationModeDialog();
+            return true;
         } else if (id == R.id.menuSettings) {
             startActivity(new Intent(this, SettingsActivity.class));
             return true;
@@ -1221,19 +1519,22 @@ public class ReaderActivity extends AppCompatActivity {
         // PDF v2.0.2 doesn't have onResume()
         String savedTheme = ReadingTheme.getTheme(prefs);
         int savedFontSize = prefs.getInt("font_size", 18);
+        String savedNav = NavigationMode.getMode(prefs);
 
         boolean themeChanged = !savedTheme.equals(currentTheme);
         boolean fontChanged = (savedFontSize != fontSize);
+        boolean navChanged = !savedNav.equals(currentNavigationMode);
 
-        if (themeChanged || fontChanged) {
+        if (themeChanged || fontChanged || navChanged) {
             currentTheme = savedTheme;
             isDarkMode = ReadingTheme.isDarkMode(currentTheme);
             fontSize = savedFontSize;
+            currentNavigationMode = savedNav;
             applyThemeColors();
             applyFontSize();
 
             if (isPdf) {
-                if (themeChanged) {
+                if (themeChanged || navChanged) {
                     loadPdfDocument(currentPage);
                 }
             } else {
@@ -1554,6 +1855,51 @@ public class ReaderActivity extends AppCompatActivity {
                     .setMessage(note)
                     .setPositiveButton(android.R.string.ok, null)
                     .show());
+        }
+
+        @android.webkit.JavascriptInterface
+        public void onPageMetrics(final int page, final int totalPages) {
+            runOnUiThread(() -> {
+                currentScreenPage = page;
+                totalScreenPages = Math.max(1, totalPages);
+                refreshProgressLabel();
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void onPageChanged(final int page, final int totalPages) {
+            runOnUiThread(() -> {
+                currentScreenPage = page;
+                totalScreenPages = Math.max(1, totalPages);
+                if (totalScreenPages > 1) {
+                    currentScrollFraction = (float) page / (totalScreenPages - 1);
+                } else {
+                    currentScrollFraction = 0f;
+                }
+                updateProgress();
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void onChapterEndReached() {
+            runOnUiThread(() -> {
+                if (epubChapters != null && currentChapterIndex < epubChapters.size() - 1) {
+                    loadChapter(currentChapterIndex + 1, 0f);
+                } else {
+                    Toast.makeText(ReaderActivity.this, "Fin del libro", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @android.webkit.JavascriptInterface
+        public void onChapterStartReached() {
+            runOnUiThread(() -> {
+                if (currentChapterIndex > 0) {
+                    loadChapter(currentChapterIndex - 1, 1.0f);
+                } else {
+                    Toast.makeText(ReaderActivity.this, "Inicio del libro", Toast.LENGTH_SHORT).show();
+                }
+            });
         }
     }
 

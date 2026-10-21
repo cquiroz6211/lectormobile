@@ -4,9 +4,10 @@ A fast, minimal PDF and EPUB reader for Android with dark mode and bookmarks.
 
 ## Features
 
-- 📖 **PDF Reading** — Full PDF support with pinch-to-zoom and swipe navigation
-- 📚 **EPUB Reading** — EPUB 2/3 support with chapter navigation and TOC
-- 🌙 **Dark Mode** — Default dark theme optimized for night reading
+- 📖 **PDF Reading** — Full PDF support with pinch-to-zoom and horizontal/vertical swipe navigation
+- 📚 **EPUB Reading** — EPUB 2/3 support with chapter navigation, TOC, and horizontal paginated reading
+- 📑 **Page Count & Paginated Mode** — Book-like page turning (tap edges or swipe) and industry-standard page calculation (Adobe/EPUB standard)
+- 🌙 **Dark Mode & Themes** — Default dark theme, plus sepia and light modes optimized for reading comfort
 - 🔖 **Bookmarks** — Save and manage bookmarks with SQLite persistence
 - ✏️ **Highlights & Notes** — Highlight EPUB text and attach notes; jump back from the annotations list
 - 📄 **Progress Tracking** — Automatic reading position saving with exact EPUB scroll restore

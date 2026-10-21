@@ -21,6 +21,7 @@ public class ReaderMenu extends PopupMenu {
         menu.add("A-").setIcon(R.drawable.ic_page);
         menu.add("A+").setIcon(R.drawable.ic_page);
         menu.add("🎨 Tema de lectura");
+        menu.add("📖 Modo de lectura");
         menu.add("📚 Índice");
 
         // Set item click listener
@@ -32,8 +33,10 @@ public class ReaderMenu extends PopupMenu {
                     activity.changeFontSize(-2);
                 } else if (title.equals("A+")) {
                     activity.changeFontSize(2);
-                } else if (title.contains("Tema") || title.contains("Modo")) {
+                } else if (title.contains("Tema")) {
                     activity.showThemeDialog();
+                } else if (title.contains("Modo")) {
+                    activity.showNavigationModeDialog();
                 } else if (title.contains("Índice")) {
                     activity.showTOC();
                 }

@@ -21,6 +21,7 @@ public class SettingsActivity extends AppCompatActivity {
 
     private Spinner themeSpinner;
     private Spinner fontSizeSpinner;
+    private Spinner navigationModeSpinner;
     private TextView versionValue;
     private SharedPreferences prefs;
 
@@ -28,6 +29,11 @@ public class SettingsActivity extends AppCompatActivity {
             ReadingTheme.THEME_LIGHT,
             ReadingTheme.THEME_SEPIA,
             ReadingTheme.THEME_DARK
+    };
+
+    private static final String[] NAV_VALUES = {
+            NavigationMode.MODE_PAGINATED,
+            NavigationMode.MODE_CONTINUOUS
     };
 
     // Font size values (px)
@@ -108,6 +114,35 @@ public class SettingsActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 int size = FONT_SIZES[position];
                 prefs.edit().putInt("font_size", size).apply();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        // Navigation mode spinner (v1.5.0)
+        navigationModeSpinner = findViewById(R.id.settings_spinner_navigation_mode);
+        ArrayAdapter<CharSequence> navAdapter = ArrayAdapter.createFromResource(
+                this, R.array.navigation_mode_entries, android.R.layout.simple_spinner_dropdown_item);
+        navAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        navigationModeSpinner.setAdapter(navAdapter);
+
+        String currentNav = NavigationMode.getMode(prefs);
+        int navPos = NavigationMode.MODE_CONTINUOUS.equals(currentNav) ? 1 : 0;
+        navigationModeSpinner.setSelection(navPos);
+
+        navigationModeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selectedNav = NAV_VALUES[position];
+                String prevNav = NavigationMode.getMode(prefs);
+                if (!selectedNav.equals(prevNav)) {
+                    NavigationMode.setMode(prefs, selectedNav);
+                    String toastMsg = position == 0
+                            ? "Modo paginado activado"
+                            : "Scroll continuo activado";
+                    Toast.makeText(SettingsActivity.this, toastMsg, Toast.LENGTH_SHORT).show();
+                }
             }
 
             @Override
